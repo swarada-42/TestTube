@@ -2,103 +2,31 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing</title>
+  <title>Custom Marker TestTube AR</title>
 
+  <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+  <!-- AR.js -->
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
-
-  <script>
-    let tubeAVisible = false;
-    let tubeBVisible = false;
-    let phoneTilted = false;
-
-    // Phone tilt detection
-    window.addEventListener("deviceorientation", (event) => {
-      phoneTilted = event.beta > 30;
-      checkReaction();
-    });
-
-    function checkReaction() {
-      const tubeB = document.querySelector("#tubeB");
-      const resultTube = document.querySelector("#resultTube");
-
-      if (!tubeB || !resultTube) return;
-
-      if (tubeAVisible && tubeBVisible && phoneTilted) {
-        tubeB.setAttribute("visible", "false");
-        resultTube.setAttribute("visible", "true");
-      } else {
-        tubeB.setAttribute("visible", "true");
-        resultTube.setAttribute("visible", "false");
-      }
-    }
-
-    // Marker handler component
-    AFRAME.registerComponent("marker-tracker", {
-      schema: { id: { type: "string" } },
-
-      init: function () {
-        this.el.addEventListener("markerFound", () => {
-          if (this.data.id === "A") tubeAVisible = true;
-          if (this.data.id === "B") tubeBVisible = true;
-          checkReaction();
-        });
-
-        this.el.addEventListener("markerLost", () => {
-          if (this.data.id === "A") tubeAVisible = false;
-          if (this.data.id === "B") tubeBVisible = false;
-          checkReaction();
-        });
-      }
-    });
-  </script>
 </head>
 
 <body style="margin:0; overflow:hidden;">
-  <a-scene embedded arjs="debugUIEnabled:false;">
+  <a-scene
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false;"
+    renderer="colorManagement: true; physicallyCorrectLights: true;"
+  >
 
-    <!-- Lighting -->
-    <a-light type="ambient" intensity="1"></a-light>
-    <a-light type="directional" position="1 2 1"></a-light>
+    <!-- CUSTOM MARKER -->
+    <a-marker type="pattern" url="markers/testtube_marker.patt">
 
-    <!-- TEST TUBE A -->
-    <a-marker
-      type="pattern"
-      url="markers/testtube_markerA.patt"
-      marker-tracker="id: A">
-
+      <!-- TEST TUBE MODEL (REFERENCE STYLE) -->
       <a-entity
         gltf-model="models/testtube.glb"
-        scale="0.005 0.005 0.005"
+        scale="0.4 0.4 0.4"
         position="0 0 0"
-        rotation="-90 0 0">
-      </a-entity>
-    </a-marker>
-
-    <!-- TEST TUBE B -->
-    <a-marker
-      type="pattern"
-      url="markers/testtube_markerB.patt"
-      marker-tracker="id: B">
-
-      <!-- Original solution -->
-      <a-entity
-        id="tubeB"
-        gltf-model="models/testtube.glb"
-        scale="0.005 0.005 0.005"
-        position="0 0 0"
-        rotation="-90 0 0"
-        visible="true">
-      </a-entity>
-
-      <!-- Reaction result -->
-      <a-entity
-        id="resultTube"
-        gltf-model="models/testtube_result.glb"
-        scale="0.1 0.1 0.1"
-        position="0 0.02 0"
-        rotation="-90 0 0"
-        visible="false">
+        rotation="0 0 0">
       </a-entity>
 
     </a-marker>
@@ -107,4 +35,3 @@
   </a-scene>
 </body>
 </html>
-
