@@ -14,10 +14,10 @@
 
     window.addEventListener("deviceorientation", (event) => {
       phoneTilted = event.beta > 30;
-      checkReaction();
+      updateReaction();
     });
 
-    function checkReaction() {
+    function updateReaction() {
       const tubeB = document.querySelector("#tubeB");
       const resultTube = document.querySelector("#resultTube");
       if (!tubeB || !resultTube) return;
@@ -33,18 +33,16 @@
 
     AFRAME.registerComponent("marker-tracker", {
       schema: { id: { type: "string" } },
-
       init: function () {
         this.el.addEventListener("markerFound", () => {
           if (this.data.id === "A") tubeAVisible = true;
           if (this.data.id === "B") tubeBVisible = true;
-          checkReaction();
+          updateReaction();
         });
-
         this.el.addEventListener("markerLost", () => {
           if (this.data.id === "A") tubeAVisible = false;
           if (this.data.id === "B") tubeBVisible = false;
-          checkReaction();
+          updateReaction();
         });
       }
     });
@@ -52,26 +50,28 @@
 </head>
 
 <body style="margin:0; overflow:hidden;">
-  <a-scene embedded arjs="debugUIEnabled:false;">
+  <a-scene
+    embedded
+    arjs="debugUIEnabled:false; trackingMethod: best; smoothingEnabled: true; smoothingCount: 5;">
 
     <a-light type="ambient" intensity="1"></a-light>
     <a-light type="directional" position="1 2 1"></a-light>
 
-    <!-- TEST TUBE A -->
+    <!-- TEST TUBE A (Blue solution) -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
       marker-tracker="id: A">
 
       <a-entity
-        gltf-model="models/testtube.glb"
-        scale="0.1 0.1 0.1"
-        position="0 0.03 0"
-        rotation="180 0 0">
+        gltf-model="models/testtube_A.glb"
+        scale="0.12 0.12 0.12"
+        position="0 0.04 0"
+        rotation="-90 0 0">
       </a-entity>
     </a-marker>
 
-    <!-- TEST TUBE B -->
+    <!-- TEST TUBE B (Yellow solution → Green after reaction) -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
@@ -79,29 +79,25 @@
 
       <a-entity
         id="tubeB"
-        gltf-model="models/testtube.glb"
-        scale="0.1 0.1 0.1"
-        position="0 0.03 0"
-        visible="true"
-          rotation="180 0 0">
+        gltf-model="models/testtube_B.glb"
+        scale="0.12 0.12 0.12"
+        position="0 0.04 0"
+        rotation="-90 0 0"
+        visible="true">
       </a-entity>
 
       <a-entity
         id="resultTube"
         gltf-model="models/testtube_result.glb"
-        scale="0.1 0.1 0.1"
-        position="0 0.03 0"
-        visible="false"
-        rotation="180 0 0">
+        scale="0.12 0.12 0.12"
+        position="0 0.04 0"
+        rotation="-90 0 0"
+        visible="false">
       </a-entity>
+
     </a-marker>
 
     <a-entity camera></a-entity>
   </a-scene>
 </body>
 </html>
-
-
-
-
-
