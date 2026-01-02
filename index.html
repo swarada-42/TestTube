@@ -26,15 +26,15 @@
       if (!liquidB) return;
 
       if (tubeAVisible && tubeBVisible && phoneTilted) {
-        // Reaction happens → GREEN solution
+        // Reaction → green
         liquidB.setAttribute("color", "green");
       } else {
-        // Default → YELLOW solution
+        // Default → yellow
         liquidB.setAttribute("color", "yellow");
       }
     }
 
-    // Marker detection handler
+    // Marker detection
     AFRAME.registerComponent("marker-tracker", {
       schema: { id: { type: "string" } },
 
@@ -64,51 +64,61 @@
     <a-light type="ambient" intensity="1"></a-light>
     <a-light type="directional" position="1 2 1"></a-light>
 
-    <!-- TEST TUBE A (BLUE SOLUTION) -->
+    <!-- ===================== TEST TUBE A ===================== -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
       marker-tracker="id: A">
 
-      <a-entity
-        gltf-model="models/testtube.glb"
-        scale="0.1 0.1 0.1"
-        position="0 0.04 0"
-        rotation="90 0 0">
+      <!-- ROTATION WRAPPER (FIXES ORIENTATION) -->
+      <a-entity rotation="90 0 0">
 
-        <!-- BLUE LIQUID -->
-        <a-cylinder
-          radius="0.025"
-          height="0.08"
-          position="0 0.04 0.01"
-          color="blue"
-          opacity="0.9">
-        </a-cylinder>
+        <!-- TEST TUBE MODEL -->
+        <a-entity
+          gltf-model="models/testtube.glb"
+          scale="0.1 0.1 0.1"
+          position="0 0.04 0">
+
+          <!-- BLUE LIQUID -->
+          <a-cylinder
+            radius="0.025"
+            height="0.08"
+            position="0 0.04 0.01"
+            color="blue"
+            opacity="0.9">
+          </a-cylinder>
+
+        </a-entity>
 
       </a-entity>
     </a-marker>
 
-    <!-- TEST TUBE B (YELLOW → GREEN AFTER REACTION) -->
+    <!-- ===================== TEST TUBE B ===================== -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
       marker-tracker="id: B">
 
-      <a-entity
-        gltf-model="models/testtube.glb"
-        scale="0.1 0.1 0.1"
-        position="0 0.04 0"
-        rotation="90 0 0">
+      <!-- ROTATION WRAPPER (SAME FIX) -->
+      <a-entity rotation="90 0 0">
 
-        <!-- LIQUID THAT CHANGES COLOR -->
-        <a-cylinder
-          id="liquidB"
-          radius="0.025"
-          height="0.08"
-          position="0 0.04 0.01"
-          color="yellow"
-          opacity="0.9">
-        </a-cylinder>
+        <!-- TEST TUBE MODEL -->
+        <a-entity
+          gltf-model="models/testtube.glb"
+          scale="0.1 0.1 0.1"
+          position="0 0.04 0">
+
+          <!-- LIQUID THAT CHANGES COLOUR -->
+          <a-cylinder
+            id="liquidB"
+            radius="0.025"
+            height="0.08"
+            position="0 0.04 0.01"
+            color="yellow"
+            opacity="0.9">
+          </a-cylinder>
+
+        </a-entity>
 
       </a-entity>
     </a-marker>
@@ -117,4 +127,3 @@
   </a-scene>
 </body>
 </html>
-
