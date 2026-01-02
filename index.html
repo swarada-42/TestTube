@@ -1,10 +1,13 @@
-the website is not placed properly as I want also there is no solution/chemical seen in the website according to our  requirement                                                                                                                              <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>AR Chemical Mixing</title>
 
+  <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+  <!-- AR.js -->
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
   <script>
@@ -12,25 +15,26 @@ the website is not placed properly as I want also there is no solution/chemical 
     let tubeBVisible = false;
     let phoneTilted = false;
 
+    // Detect phone tilt
     window.addEventListener("deviceorientation", (event) => {
       phoneTilted = event.beta > 30;
       checkReaction();
     });
 
     function checkReaction() {
-      const tubeB = document.querySelector("#tubeB");
-      const resultTube = document.querySelector("#resultTube");
-      if (!tubeB || !resultTube) return;
+      const liquidB = document.querySelector("#liquidB");
+      if (!liquidB) return;
 
       if (tubeAVisible && tubeBVisible && phoneTilted) {
-        tubeB.setAttribute("visible", "false");
-        resultTube.setAttribute("visible", "true");
+        // Reaction → green solution
+        liquidB.setAttribute("color", "green");
       } else {
-        tubeB.setAttribute("visible", "true");
-        resultTube.setAttribute("visible", "false");
+        // Original → yellow solution
+        liquidB.setAttribute("color", "yellow");
       }
     }
 
+    // Marker detection component
     AFRAME.registerComponent("marker-tracker", {
       schema: { id: { type: "string" } },
 
@@ -52,12 +56,15 @@ the website is not placed properly as I want also there is no solution/chemical 
 </head>
 
 <body style="margin:0; overflow:hidden;">
-  <a-scene embedded arjs="debugUIEnabled:false;">
+  <a-scene
+    embedded
+    arjs="debugUIEnabled:false; trackingMethod: best; smoothingEnabled:true; smoothingCount:5;">
 
+    <!-- Lighting -->
     <a-light type="ambient" intensity="1"></a-light>
     <a-light type="directional" position="1 2 1"></a-light>
 
-    <!-- TEST TUBE A -->
+    <!-- TEST TUBE A (Blue solution) -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
@@ -66,33 +73,43 @@ the website is not placed properly as I want also there is no solution/chemical 
       <a-entity
         gltf-model="models/testtube.glb"
         scale="0.1 0.1 0.1"
-        position="0 0.03 0"
-        rotation="90 0 0">
+        position="0 0.04 0"
+        rotation="180 0 0">
+
+        <!-- BLUE LIQUID -->
+        <a-cylinder
+          radius="0.01"
+          height="0.04"
+          position="0 0.02 0"
+          color="blue"
+          opacity="0.85">
+        </a-cylinder>
+
       </a-entity>
     </a-marker>
 
-    <!-- TEST TUBE B -->
+    <!-- TEST TUBE B (Yellow → Green after reaction) -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
       marker-tracker="id: B">
 
       <a-entity
-        id="tubeB"
         gltf-model="models/testtube.glb"
         scale="0.1 0.1 0.1"
-        position="0 0.03 0"
-        visible="true"
-          rotation="90 0 0">
-      </a-entity>
+        position="0 0.04 0"
+        rotation="180 0 0">
 
-      <a-entity
-        id="resultTube"
-        gltf-model="models/testtube_result.glb"
-        scale="0.1 0.1 0.1"
-        position="0 0.03 0"
-        visible="false"
-        rotation="90 0 0">
+        <!-- LIQUID (changes colour) -->
+        <a-cylinder
+          id="liquidB"
+          radius="0.01"
+          height="0.04"
+          position="0 0.02 0"
+          color="yellow"
+          opacity="0.85">
+        </a-cylinder>
+
       </a-entity>
     </a-marker>
 
@@ -100,9 +117,3 @@ the website is not placed properly as I want also there is no solution/chemical 
   </a-scene>
 </body>
 </html>
-
-
-
-
-
-
