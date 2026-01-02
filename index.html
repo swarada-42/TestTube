@@ -18,23 +18,23 @@
     // Detect phone tilt
     window.addEventListener("deviceorientation", (event) => {
       phoneTilted = event.beta > 30;
-      checkReaction();
+      updateReaction();
     });
 
-    function checkReaction() {
+    function updateReaction() {
       const liquidB = document.querySelector("#liquidB");
       if (!liquidB) return;
 
       if (tubeAVisible && tubeBVisible && phoneTilted) {
-        // Reaction → green solution
+        // Reaction happens → GREEN solution
         liquidB.setAttribute("color", "green");
       } else {
-        // Original → yellow solution
+        // Default → YELLOW solution
         liquidB.setAttribute("color", "yellow");
       }
     }
 
-    // Marker detection component
+    // Marker detection handler
     AFRAME.registerComponent("marker-tracker", {
       schema: { id: { type: "string" } },
 
@@ -42,13 +42,13 @@
         this.el.addEventListener("markerFound", () => {
           if (this.data.id === "A") tubeAVisible = true;
           if (this.data.id === "B") tubeBVisible = true;
-          checkReaction();
+          updateReaction();
         });
 
         this.el.addEventListener("markerLost", () => {
           if (this.data.id === "A") tubeAVisible = false;
           if (this.data.id === "B") tubeBVisible = false;
-          checkReaction();
+          updateReaction();
         });
       }
     });
@@ -64,7 +64,7 @@
     <a-light type="ambient" intensity="1"></a-light>
     <a-light type="directional" position="1 2 1"></a-light>
 
-    <!-- TEST TUBE A (Blue solution) -->
+    <!-- TEST TUBE A (BLUE SOLUTION) -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
@@ -78,17 +78,17 @@
 
         <!-- BLUE LIQUID -->
         <a-cylinder
-          radius="0.01"
-          height="0.04"
-          position="0 0.02 0"
+          radius="0.025"
+          height="0.08"
+          position="0 0.04 0.01"
           color="blue"
-          opacity="0.85">
+          opacity="0.9">
         </a-cylinder>
 
       </a-entity>
     </a-marker>
 
-    <!-- TEST TUBE B (Yellow → Green after reaction) -->
+    <!-- TEST TUBE B (YELLOW → GREEN AFTER REACTION) -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
@@ -100,14 +100,14 @@
         position="0 0.04 0"
         rotation="180 0 0">
 
-        <!-- LIQUID (changes colour) -->
+        <!-- LIQUID THAT CHANGES COLOR -->
         <a-cylinder
           id="liquidB"
-          radius="0.01"
-          height="0.04"
-          position="0 0.02 0"
+          radius="0.025"
+          height="0.08"
+          position="0 0.04 0.01"
           color="yellow"
-          opacity="0.85">
+          opacity="0.9">
         </a-cylinder>
 
       </a-entity>
