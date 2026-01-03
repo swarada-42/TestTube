@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing</title>
+  <title>AR Chemical Mixing (No GLB)</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -26,15 +26,12 @@
       if (!liquidB) return;
 
       if (tubeAVisible && tubeBVisible && phoneTilted) {
-        // Reaction → green
         liquidB.setAttribute("color", "green");
       } else {
-        // Default → yellow
         liquidB.setAttribute("color", "yellow");
       }
     }
 
-    // Marker detection
     AFRAME.registerComponent("marker-tracker", {
       schema: { id: { type: "string" } },
 
@@ -56,93 +53,70 @@
 </head>
 
 <body style="margin:0; overflow:hidden;">
-  <a-scene
-    embedded
-    arjs="debugUIEnabled:false; trackingMethod: best; smoothingEnabled:true; smoothingCount:5;">
+  <a-scene embedded arjs="debugUIEnabled:false;">
 
-    <!-- Lighting -->
+    <!-- LIGHTING -->
     <a-light type="ambient" intensity="1"></a-light>
     <a-light type="directional" position="1 2 1"></a-light>
 
-    <!-- ===================== TEST TUBE A ===================== -->
+    <!-- ================= TEST TUBE A ================= -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
       marker-tracker="id: A">
 
-      <!-- ROTATION WRAPPER (FIXES ORIENTATION) -->
-      <a-entity rotation="90 0 0">
+      <!-- GLASS TUBE -->
+      <a-cylinder
+        radius="0.15"
+        height="0.6"
+        position="0 0.3 0"
+        color="#ffffff"
+        opacity="0.25"
+        metalness="0.1"
+        roughness="0.1">
+      </a-cylinder>
 
-        <!-- TEST TUBE MODEL -->
-        <a-entity
-          gltf-model="models/testtube.glb"
-          scale="0.1 0.1 0.1"
-          position="0 0.04 0">
+      <!-- BLUE LIQUID -->
+      <a-cylinder
+        radius="0.13"
+        height="0.3"
+        position="0 0.15 0"
+        color="blue"
+        opacity="0.9">
+      </a-cylinder>
 
-          <!-- BLUE LIQUID -->
-          <!-- <a-cylinder
-            radius="0.025"
-            height="0.08"
-            position="0 0.04 0.01"
-            color="blue"
-            opacity="0.9">
-          </a-cylinder> -->
-
-          <a-cylinder
-  radius="0.06"
-  height="0.18"
-  position="0 0.12 0.05"
-  color="blue"
-  opacity="0.9">
-</a-cylinder>
-
-
-        </a-entity>
-
-      </a-entity>
     </a-marker>
 
-    <!-- ===================== TEST TUBE B ===================== -->
+    <!-- ================= TEST TUBE B ================= -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
       marker-tracker="id: B">
 
-      <!-- ROTATION WRAPPER (SAME FIX) -->
-      <a-entity rotation="90 0 0">
+      <!-- GLASS TUBE -->
+      <a-cylinder
+        radius="0.15"
+        height="0.6"
+        position="0 0.3 0"
+        color="#ffffff"
+        opacity="0.25"
+        metalness="0.1"
+        roughness="0.1">
+      </a-cylinder>
 
-        <!-- TEST TUBE MODEL -->
-        <a-entity
-          gltf-model="models/testtube.glb"
-          scale="0.1 0.1 0.1"
-          position="0 0.04 0">
+      <!-- LIQUID (YELLOW → GREEN) -->
+      <a-cylinder
+        id="liquidB"
+        radius="0.13"
+        height="0.3"
+        position="0 0.15 0"
+        color="yellow"
+        opacity="0.9">
+      </a-cylinder>
 
-          <!-- LIQUID THAT CHANGES COLOUR -->
-          <!-- <a-cylinder
-            id="liquidB"
-            radius="0.025"
-            height="0.08"
-            position="0 0.04 0.01"
-            color="yellow"
-            opacity="0.9">
-          </a-cylinder> -->
-
-          <a-cylinder
-  id="liquidB"
-  radius="0.06"
-  height="0.18"
-  position="0 0.12 0.05"
-  color="yellow"
-  opacity="0.9">
-</a-cylinder>
-
-        </a-entity>
-
-      </a-entity>
     </a-marker>
 
     <a-entity camera></a-entity>
   </a-scene>
 </body>
 </html>
-
