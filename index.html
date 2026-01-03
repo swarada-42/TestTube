@@ -50,10 +50,26 @@
       }
     });
   </script>
+  <script>
+AFRAME.registerComponent("lock-liquid", {
+  tick: function () {
+    this.el.object3D.rotation.x = 0;
+    this.el.object3D.rotation.z = 0;
+  }
+});
+</script>
+
 </head>
 
 <body style="margin:0; overflow:hidden;">
-  <a-scene embedded arjs="debugUIEnabled:false;">
+  <a-scene
+  embedded
+  arjs="debugUIEnabled:false;
+    trackingMethod: best;
+    smoothingEnabled:true;
+    smoothingCount:10;
+    smoothingTolerance:0.01;
+    smoothingThreshold:5;">
 
     <!-- LIGHTING -->
     <a-light type="ambient" intensity="1"></a-light>
@@ -116,7 +132,8 @@
 
     </a-marker>
 
-    <a-entity camera></a-entity>
+    <a-entity camera look-controls="enabled: false"></a-entity>
   </a-scene>
 </body>
 </html>
+
