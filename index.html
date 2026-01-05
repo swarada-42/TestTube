@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Pouring</title>
+  <title>AR Chemical Mixing – Stable Pouring</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -11,22 +11,36 @@
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
   <script>
-    let levelA = 0.3;   // initial liquid height in tube A
-    let levelB = 0.05;  // initial liquid height in tube B
+    // Liquid levels
+    let levelA = 0.3;
+    let levelB = 0.05;
 
     const MIN = 0.05;
     const MAX = 0.3;
-    const SPEED = 0.004;
+    const SPEED = 0.003;
 
+    // State flags
+    let tubeAVisible = false;
+    let tubeBVisible = false;
+    let reactionDone = false;
+
+    // Detect phone tilt
     window.addEventListener("deviceorientation", (event) => {
       const tilt = event.beta || 0;
+
+      // Only mix when:
+      // 1. Both markers visible
+      // 2. Phone tilted
+      // 3. Reaction not done
+      if (!tubeAVisible || !tubeBVisible || reactionDone) return;
+      if (tilt < 30) return;
 
       const liquidA = document.querySelector("#liquidA");
       const liquidB = document.querySelector("#liquidB");
       if (!liquidA || !liquidB) return;
 
-      // POUR WHEN PHONE TILTS FORWARD
-      if (tilt > 30 && levelA > MIN) {
+      // Pour from A → B
+      if (levelA > MIN) {
         levelA -= SPEED;
         levelB += SPEED;
       }
@@ -35,17 +49,35 @@
       levelA = Math.max(MIN, levelA);
       levelB = Math.min(MAX, levelB);
 
-      // Update tube A
+      // Update Tube A
       liquidA.setAttribute("height", levelA);
       liquidA.setAttribute("position", `0 ${levelA / 2} 0`);
 
-      // Update tube B
+      // Update Tube B
       liquidB.setAttribute("height", levelB);
       liquidB.setAttribute("position", `0 ${levelB / 2} 0`);
 
-      // Reaction color change
-      if (levelB > 0.2) {
+      // Reaction completed
+      if (levelA <= MIN + 0.01) {
+        reactionDone = true;
         liquidB.setAttribute("color", "green");
+      }
+    });
+
+    // Marker visibility tracking
+    AFRAME.registerComponent("marker-tracker", {
+      schema: { id: { type: "string" } },
+
+      init() {
+        this.el.addEventListener("markerFound", () => {
+          if (this.data.id === "A") tubeAVisible = true;
+          if (this.data.id === "B") tubeBVisible = true;
+        });
+
+        this.el.addEventListener("markerLost", () => {
+          if (this.data.id === "A") tubeAVisible = false;
+          if (this.data.id === "B") tubeBVisible = false;
+        });
       }
     });
   </script>
@@ -62,13 +94,16 @@
       smoothingThreshold:10;
     ">
 
-    <!-- LIGHT -->
+    <!-- Lighting -->
     <a-light type="ambient" intensity="1"></a-light>
 
-    <!-- ================= TEST TUBE A ================= -->
-    <a-marker type="pattern" url="markers/testtube_markerA.patt">
+    <!-- ========== TEST TUBE A ========= -->
+    <a-marker
+      type="pattern"
+      url="markers/testtube_markerA.patt"
+      marker-tracker="id: A">
 
-      <!-- GLASS -->
+      <!-- Glass -->
       <a-cylinder
         radius="0.15"
         height="0.6"
@@ -77,7 +112,7 @@
         opacity="0.25">
       </a-cylinder>
 
-      <!-- LIQUID A -->
+      <!-- Liquid A -->
       <a-cylinder
         id="liquidA"
         radius="0.13"
@@ -89,10 +124,13 @@
 
     </a-marker>
 
-    <!-- ================= TEST TUBE B ================= -->
-    <a-marker type="pattern" url="markers/testtube_markerB.patt">
+    <!-- ========== TEST TUBE B ========= -->
+    <a-marker
+      type="pattern"
+      url="markers/testtube_markerB.patt"
+      marker-tracker="id: B">
 
-      <!-- GLASS -->
+      <!-- Glass -->
       <a-cylinder
         radius="0.15"
         height="0.6"
@@ -101,7 +139,7 @@
         opacity="0.25">
       </a-cylinder>
 
-      <!-- LIQUID B -->
+      <!-- Liquid B -->
       <a-cylinder
         id="liquidB"
         radius="0.13"
@@ -113,7 +151,7 @@
 
     </a-marker>
 
-    <!-- CAMERA -->
+    <!-- Camera -->
     <a-entity camera look-controls="enabled:false"></a-entity>
   </a-scene>
 </body>
