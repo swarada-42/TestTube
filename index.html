@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing with Droplets</title>
+  <title>AR Chemical Mixing – Stable Liquid + Droplets</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -11,13 +11,6 @@
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
   <script>
-    // Liquid levels
-    let levelA = 0.3;
-    let levelB = 0.05;
-    const MIN = 0.05;
-    const MAX = 0.3;
-    const SPEED = 0.003;
-
     let tubeAVisible = false;
     let tubeBVisible = false;
     let reactionDone = false;
@@ -25,12 +18,9 @@
     // DROPLET SPAWNER COMPONENT
     AFRAME.registerComponent("drop-spawner", {
       init: function () {
-        this.drops = [];
-
         window.addEventListener("deviceorientation", (event) => {
           const tilt = event.beta || 0;
 
-          // Only spawn droplets when Tube A is visible & tilted
           if (tilt > 35 && tubeAVisible && !reactionDone) {
             this.spawnDrop();
           }
@@ -41,7 +31,7 @@
         const drop = document.createElement("a-sphere");
         drop.setAttribute("radius", "0.01");
         drop.setAttribute("color", "blue");
-        drop.setAttribute("position", "0 0.05 0"); // start at tube base
+        drop.setAttribute("position", "0 0.05 0");
 
         this.el.sceneEl.appendChild(drop);
         this.animateDrop(drop);
@@ -60,42 +50,7 @@
       }
     });
 
-    // DEVICE TILT → POUR LOGIC
-    window.addEventListener("deviceorientation", (event) => {
-      const tilt = event.beta || 0;
-      const liquidA = document.querySelector("#liquidA");
-      const liquidB = document.querySelector("#liquidB");
-
-      if (!liquidA || !liquidB) return;
-
-      if (tubeAVisible && tubeBVisible && tilt > 30 && !reactionDone) {
-        // Pour from A → B
-        if (levelA > MIN) {
-          levelA -= SPEED;
-          levelB += SPEED;
-        }
-
-        // Clamp values
-        levelA = Math.max(MIN, levelA);
-        levelB = Math.min(MAX, levelB);
-
-        // Update Tube A liquid
-        liquidA.setAttribute("height", levelA);
-        liquidA.setAttribute("position", `0 ${levelA / 2} 0`);
-
-        // Update Tube B liquid
-        liquidB.setAttribute("height", levelB);
-        liquidB.setAttribute("position", `0 ${levelB / 2} 0`);
-
-        // Final reaction
-        if (levelA <= MIN + 0.01) {
-          reactionDone = true;
-          liquidB.setAttribute("color", "green"); // Reaction result
-        }
-      }
-    });
-
-    // MARKER TRACKING COMPONENT
+    // MARKER TRACKING
     AFRAME.registerComponent("marker-tracker", {
       schema: { id: { type: "string" } },
 
@@ -111,6 +66,19 @@
         });
       }
     });
+
+    // COLOR CHANGE (REACTION) WITHOUT POURING
+    window.addEventListener("deviceorientation", (event) => {
+      const tilt = event.beta || 0;
+
+      if (tubeAVisible && tubeBVisible && tilt > 40 && !reactionDone) {
+        const liquidB = document.querySelector("#liquidB");
+        if (liquidB) {
+          liquidB.setAttribute("color", "green");
+          reactionDone = true;
+        }
+      }
+    });
   </script>
 
 </head>
@@ -118,25 +86,15 @@
 <body style="margin:0; overflow:hidden;">
   <a-scene
     embedded
-    arjs="
-      debugUIEnabled:false;
-      smoothingEnabled:true;
-      smoothingCount:10;
-      smoothingTolerance:0.01;
-      smoothingThreshold:10;
-    "
-  >
+    arjs="debugUIEnabled:false;">
 
-    <!-- Lighting -->
     <a-light type="ambient" intensity="1"></a-light>
-    <a-light type="directional" position="1 2 1"></a-light>
 
-    <!-- ====================== TEST TUBE A ====================== -->
+    <!-- TEST TUBE A -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
-      marker-tracker="id: A"
-    >
+      marker-tracker="id: A">
 
       <a-entity id="tubeA" drop-spawner>
 
@@ -146,52 +104,50 @@
           height="0.6"
           position="0 0.3 0"
           color="#ffffff"
-          opacity="0.25"
-        ></a-cylinder>
+          opacity="0.25">
+        </a-cylinder>
 
-        <!-- Liquid A (Blue) -->
+        <!-- Stable Liquid -->
         <a-cylinder
           id="liquidA"
           radius="0.13"
-          height="0.3"
-          position="0 0.15 0"
+          height="0.28"
+          position="0 0.14 0"
           color="blue"
-          opacity="0.9"
-        ></a-cylinder>
+          opacity="0.9">
+        </a-cylinder>
 
       </a-entity>
 
     </a-marker>
 
-    <!-- ====================== TEST TUBE B ====================== -->
+    <!-- TEST TUBE B -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
-      marker-tracker="id: B"
-    >
+      marker-tracker="id: B">
 
-      <!-- Glass -->
       <a-cylinder
         radius="0.15"
         height="0.6"
         position="0 0.3 0"
         color="#ffffff"
-        opacity="0.25"
-      ></a-cylinder>
+        opacity="0.25">
+      </a-cylinder>
 
-      <!-- Liquid B (Yellow → Green) -->
+      <!-- Stable Liquid -->
       <a-cylinder
         id="liquidB"
         radius="0.13"
-        height="0.05"
-        position="0 0.025 0"
+        height="0.10"
+        position="0 0.05 0"
         color="yellow"
-        opacity="0.9"
-      ></a-cylinder>
+        opacity="0.9">
+      </a-cylinder>
 
     </a-marker>
 
-    <a-entity camera look-controls="enabled:false"></a-entity>
+    <a-entity camera></a-entity>
   </a-scene>
 </body>
 </html>
