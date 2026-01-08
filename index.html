@@ -2,454 +2,444 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing - Working Droplets</title>
-  
+  <title>AR Chemical Mixing – Visible Droplets</title>
+
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  
+
   <!-- AR.js -->
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
-  
+
   <style>
     body {
       margin: 0;
       overflow: hidden;
       font-family: Arial, sans-serif;
     }
-    #info {
+    #hud {
       position: absolute;
       top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 10px 20px;
-      border-radius: 20px;
-      z-index: 1000;
-      text-align: center;
-      max-width: 90%;
-    }
-    #debug {
-      position: absolute;
-      bottom: 10px;
       left: 10px;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0,0,0,0.8);
       color: white;
       padding: 10px;
       border-radius: 10px;
       z-index: 1000;
-      font-size: 14px;
+      max-width: 80%;
     }
     .drop-counter {
       position: absolute;
-      top: 60px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 100, 255, 0.8);
+      top: 10px;
+      right: 10px;
+      background: rgba(0,100,255,0.8);
       color: white;
-      padding: 5px 15px;
+      padding: 10px;
       border-radius: 10px;
       z-index: 1000;
     }
   </style>
 
   <script>
-    // Global variables
+    // Liquid levels
+    let levelA = 0.3;
+    let levelB = 0.05;
+    let dropCount = 0;
+    let activeDrops = [];
+
+    const MIN = 0.05;
+    const MAX = 0.3;
+    const SPEED = 0.008;
+
+    // State flags
     let tubeAVisible = false;
     let tubeBVisible = false;
     let reactionDone = false;
-    let tiltThreshold = 30; // Lower threshold for easier testing
+    let tiltThreshold = 30;
     let lastDropTime = 0;
-    const dropInterval = 500; // Slower drops for better visibility
-    let dropCount = 0;
-    let isTilting = false;
-    
-    // Store all active drops
-    const activeDrops = [];
-    
+    const dropInterval = 300;
+
     // MARKER TRACKING
     AFRAME.registerComponent("marker-tracker", {
       schema: { id: { type: "string" } },
+
       init() {
         this.el.addEventListener("markerFound", () => {
-          console.log(`Marker ${this.data.id} FOUND`);
           if (this.data.id === "A") {
             tubeAVisible = true;
-            document.getElementById('markerA-status').textContent = "✅ Found";
+            document.getElementById("marker-a-status").textContent = "✅ Found";
           }
           if (this.data.id === "B") {
             tubeBVisible = true;
-            document.getElementById('markerB-status').textContent = "✅ Found";
+            document.getElementById("marker-b-status").textContent = "✅ Found";
           }
-          updateInfo();
+          updateStatus();
         });
-        
+
         this.el.addEventListener("markerLost", () => {
-          console.log(`Marker ${this.data.id} LOST`);
           if (this.data.id === "A") {
             tubeAVisible = false;
-            document.getElementById('markerA-status').textContent = "❌ Not found";
+            document.getElementById("marker-a-status").textContent = "❌ Not found";
           }
           if (this.data.id === "B") {
             tubeBVisible = false;
-            document.getElementById('markerB-status').textContent = "❌ Not found";
+            document.getElementById("marker-b-status").textContent = "❌ Not found";
           }
-          updateInfo();
+          updateStatus();
         });
       }
     });
-    
-    // DROPLET SYSTEM - IMPROVED VISIBILITY
-    AFRAME.registerComponent("drop-system", {
+
+    // DROPLET SYSTEM - Creates visible droplets
+    AFRAME.registerComponent("drop-spawner", {
       init: function () {
-        console.log("Drop system initialized!");
+        console.log("Drop spawner initialized");
         
-        // Tilt detection for drops
-        if (window.DeviceOrientationEvent) {
-          window.addEventListener("deviceorientation", (event) => {
-            const tilt = Math.round(event.beta || 0); // Front-back tilt
-            const currentTime = Date.now();
-            
-            // Update debug info
-            document.getElementById('tilt-value').textContent = tilt + '°';
-            document.getElementById('tilt-status').textContent = 
-              tilt > tiltThreshold ? "TILTING! Drops falling" : "Not tilting";
-            
-            // Check if we should spawn drops
-            if (tilt > tiltThreshold && tubeAVisible && !reactionDone) {
-              isTilting = true;
+        window.addEventListener("deviceorientation", (event) => {
+          const tilt = event.beta || 0;
+          const currentTime = Date.now();
+          
+          // Update tilt display
+          document.getElementById("tilt-display").textContent = Math.round(tilt) + '°';
+          
+          // Spawn droplets when tilted and tube A is visible
+          if (tilt > tiltThreshold && tubeAVisible && !reactionDone) {
+            if (currentTime - lastDropTime > dropInterval) {
+              lastDropTime = currentTime;
+              this.spawnDrop();
               
-              // Spawn drops at intervals
-              if (currentTime - lastDropTime > dropInterval) {
-                lastDropTime = currentTime;
-                this.spawnDrop();
-              }
-            } else {
-              isTilting = false;
+              // Also update liquid levels
+              updateLiquidLevels();
             }
-            
-            // Chemical reaction
-            if (tilt > 40 && tubeAVisible && tubeBVisible && !reactionDone) {
+          }
+          
+          // Check for reaction
+          if (tilt > 40 && tubeAVisible && tubeBVisible && !reactionDone) {
+            if (levelA <= MIN + 0.01) {
               triggerReaction();
             }
-          });
-        } else {
-          console.warn("Device orientation not supported");
-          // Keyboard fallback
-          document.addEventListener('keydown', (e) => {
-            if (e.key === 'd' || e.key === 'D') {
-              this.spawnDrop();
-            }
-          });
-        }
+          }
+        });
       },
-      
+
       spawnDrop: function () {
         dropCount++;
-        document.getElementById('drop-count').textContent = dropCount;
+        document.getElementById("drop-count").textContent = dropCount;
         
-        // Create a visible drop
+        // Create a visible droplet
         const drop = document.createElement("a-sphere");
-        const dropId = 'drop-' + Date.now();
-        drop.setAttribute("id", dropId);
-        drop.setAttribute("radius", "0.03"); // BIGGER for visibility
-        drop.setAttribute("color", "#0088FF"); // Bright blue
+        drop.setAttribute("radius", "0.03");
+        drop.setAttribute("color", "#0088ff");
         drop.setAttribute("opacity", "0.9");
-        drop.setAttribute("shader", "flat");
         
-        // Position drop at the TOP of test tube A's liquid
-        // Test Tube A position is at marker origin
+        // Position at the top of tube A's liquid
+        // Get tube A's position
+        const tubeA = document.querySelector("#tubeA");
+        if (!tubeA) return;
+        
         drop.setAttribute("position", {
           x: 0,
-          y: 0.28, // Top of liquid in tube A
+          y: 0.28, // Top of liquid surface
           z: 0
         });
         
-        // Add to scene - attach to tubeA entity
-        const tubeA = document.querySelector("#tubeA");
-        if (tubeA) {
-          tubeA.appendChild(drop);
-          
-          // Store drop
-          activeDrops.push({id: dropId, element: drop, startTime: Date.now()});
-          
-          // Animate the drop falling
-          this.animateDrop(drop, dropId);
-          
-          console.log(`Drop spawned #${dropCount}`);
-        }
+        // Add glow effect for better visibility
+        drop.setAttribute("light", {
+          type: "point",
+          color: "#0088ff",
+          intensity: 0.3,
+          distance: 0.5
+        });
+        
+        // Add to tube A
+        tubeA.appendChild(drop);
+        
+        // Store drop
+        const dropId = 'drop-' + Date.now();
+        drop.setAttribute('id', dropId);
+        activeDrops.push({id: dropId, element: drop});
+        
+        // Animate drop falling
+        this.animateDrop(drop, dropId);
       },
-      
+
       animateDrop: function (drop, dropId) {
         let startY = 0.28;
         let currentY = startY;
-        const fallSpeed = 0.01; // Slower fall
-        const removeHeight = -0.3; // Fall further down
+        const fallSpeed = 0.01;
+        const animationDuration = 1500;
+        const startTime = Date.now();
         
-        const fallInterval = setInterval(() => {
-          currentY -= fallSpeed;
+        const animate = () => {
+          const elapsed = Date.now() - startTime;
           
-          // Update drop position
-          drop.setAttribute("position", {
-            x: 0,
-            y: currentY,
-            z: 0
-          });
-          
-          // Remove if fallen too far or reaction happened
-          if (currentY < removeHeight || reactionDone) {
-            clearInterval(fallInterval);
+          if (elapsed < animationDuration && !reactionDone) {
+            // Move drop down
+            const progress = elapsed / animationDuration;
+            currentY = startY - (startY + 0.3) * progress;
+            
+            drop.setAttribute("position", {
+              x: 0,
+              y: currentY,
+              z: 0
+            });
+            
+            // Slight wobble effect
+            const wobble = Math.sin(progress * Math.PI * 4) * 0.02;
+            drop.setAttribute("position", {
+              x: wobble,
+              y: currentY,
+              z: wobble * 0.5
+            });
+            
+            requestAnimationFrame(animate);
+          } else {
+            // Remove drop
             if (drop.parentNode) {
               drop.parentNode.removeChild(drop);
             }
             // Remove from active drops
             const index = activeDrops.findIndex(d => d.id === dropId);
-            if (index > -1) {
-              activeDrops.splice(index, 1);
-            }
+            if (index > -1) activeDrops.splice(index, 1);
           }
-        }, 30); // 30ms interval for smooth animation
+        };
+        
+        requestAnimationFrame(animate);
       }
     });
-    
-    // REACTION FUNCTION
+
+    // Update liquid levels
+    function updateLiquidLevels() {
+      if (!tubeAVisible || !tubeBVisible || reactionDone) return;
+      
+      const liquidA = document.querySelector("#liquidA");
+      const liquidB = document.querySelector("#liquidB");
+      if (!liquidA || !liquidB) return;
+
+      // Pour from A → B
+      if (levelA > MIN) {
+        levelA -= SPEED * 0.5; // Slower since drops are separate
+        levelB += SPEED * 0.5;
+      }
+
+      // Clamp values
+      levelA = Math.max(MIN, levelA);
+      levelB = Math.min(MAX, levelB);
+
+      // Update Tube A
+      liquidA.setAttribute("height", levelA);
+      liquidA.setAttribute("position", `0 ${levelA / 2} 0`);
+
+      // Update Tube B
+      liquidB.setAttribute("height", levelB);
+      liquidB.setAttribute("position", `0 ${levelB / 2} 0`);
+    }
+
+    // Trigger reaction
     function triggerReaction() {
-      console.log("CHEMICAL REACTION!");
       reactionDone = true;
       
       const liquidB = document.querySelector("#liquidB");
-      const surfaceB = document.querySelector("#surfaceB");
-      
-      if (liquidB && surfaceB) {
-        // Change color to green
-        liquidB.setAttribute("color", "#00FF00");
-        surfaceB.setAttribute("color", "#00FF00");
-        
-        // Increase liquid level
-        liquidB.setAttribute("height", "0.38");
-        liquidB.setAttribute("position", "0 0.19 0");
-        surfaceB.setAttribute("position", "0 0.38 0");
-        
-        // Update info
-        document.getElementById('info').innerHTML = 
-          "<h3>🎉 CHEMICAL REACTION! 🎉</h3>" +
-          "<p>Blue + Yellow = Green</p>" +
-          "<p>Reaction Complete!</p>";
-        document.getElementById('info').style.background = "rgba(0, 255, 0, 0.8)";
-        
-        // Remove all active drops
-        activeDrops.forEach(drop => {
-          if (drop.element.parentNode) {
-            drop.element.parentNode.removeChild(drop.element);
-          }
-        });
-        activeDrops.length = 0;
+      if (liquidB) {
+        liquidB.setAttribute("color", "#00ff00");
+        document.getElementById("reaction-status").textContent = "🎉 Reaction Complete!";
+        document.getElementById("reaction-status").style.color = "#00ff00";
       }
+      
+      // Clear all drops
+      clearAllDrops();
     }
-    
-    // Update info display
-    function updateInfo() {
-      const status = document.getElementById('status-text');
+
+    // Clear all drops
+    function clearAllDrops() {
+      activeDrops.forEach(drop => {
+        if (drop.element.parentNode) {
+          drop.element.parentNode.removeChild(drop.element);
+        }
+      });
+      activeDrops = [];
+    }
+
+    // Update status
+    function updateStatus() {
+      const status = document.getElementById("experiment-status");
       if (tubeAVisible && tubeBVisible) {
-        status.textContent = "Both tubes ready! Tilt phone forward.";
+        status.textContent = "Ready! Tilt phone forward";
       } else if (tubeAVisible) {
-        status.textContent = "Tube A ready. Show Tube B marker.";
+        status.textContent = "Tube A ready";
       } else if (tubeBVisible) {
-        status.textContent = "Tube B ready. Show Tube A marker.";
+        status.textContent = "Tube B ready";
       } else {
         status.textContent = "Show marker A or B";
       }
     }
-    
+
     // Reset function
     window.resetExperiment = function() {
       reactionDone = false;
       dropCount = 0;
+      levelA = 0.3;
+      levelB = 0.05;
+      
+      // Reset tube A
+      const liquidA = document.querySelector("#liquidA");
+      if (liquidA) {
+        liquidA.setAttribute("height", "0.3");
+        liquidA.setAttribute("position", "0 0.15 0");
+      }
       
       // Reset tube B
       const liquidB = document.querySelector("#liquidB");
-      const surfaceB = document.querySelector("#surfaceB");
-      if (liquidB && surfaceB) {
+      if (liquidB) {
+        liquidB.setAttribute("height", "0.05");
+        liquidB.setAttribute("position", "0 0.025 0");
         liquidB.setAttribute("color", "yellow");
-        liquidB.setAttribute("height", "0.10");
-        liquidB.setAttribute("position", "0 0.05 0");
-        surfaceB.setAttribute("color", "yellow");
-        surfaceB.setAttribute("position", "0 0.10 0");
       }
       
       // Clear drops
-      document.querySelectorAll('[id^="drop-"]').forEach(drop => {
-        drop.parentNode.removeChild(drop);
-      });
+      clearAllDrops();
       
       // Update displays
-      document.getElementById('drop-count').textContent = "0";
-      document.getElementById('info').innerHTML = 
-        "<h3>AR Chemical Experiment</h3>" +
-        "<p>Tilt phone forward to drop blue liquid into yellow</p>";
-      document.getElementById('info').style.background = "rgba(0, 0, 0, 0.8)";
+      document.getElementById("drop-count").textContent = "0";
+      document.getElementById("reaction-status").textContent = "Not reacted";
+      document.getElementById("reaction-status").style.color = "white";
+      document.getElementById("tilt-display").textContent = "0°";
       
-      console.log("Experiment reset");
+      updateStatus();
     };
-    
+
   </script>
+
 </head>
 
-<body>
-  <!-- Top Info -->
-  <div id="info">
-    <h3>AR Chemical Experiment</h3>
-    <p>Tilt phone forward to drop blue liquid into yellow</p>
+<body style="margin:0; overflow:hidden;">
+  <!-- HUD Display -->
+  <div id="hud">
+    <h3 style="margin: 0 0 10px 0;">🧪 AR Chemical Experiment</h3>
+    <p><strong>Status:</strong> <span id="experiment-status">Show marker A or B</span></p>
+    <p><strong>Tilt:</strong> <span id="tilt-display">0°</span></p>
+    <p><strong>Markers:</strong> 
+      A: <span id="marker-a-status">❌</span> | 
+      B: <span id="marker-b-status">❌</span>
+    </p>
+    <p><strong>Reaction:</strong> <span id="reaction-status">Not reacted</span></p>
+    <button onclick="resetExperiment()" style="margin-top: 5px; padding: 5px 10px;">
+      Reset Experiment
+    </button>
   </div>
   
   <!-- Drop Counter -->
   <div class="drop-counter">
     💧 Drops: <span id="drop-count">0</span>
   </div>
-  
-  <!-- Debug Panel -->
-  <div id="debug">
-    <p><strong>Status:</strong> <span id="status-text">Show marker A or B</span></p>
-    <p><strong>Tilt:</strong> <span id="tilt-value">0°</span> | 
-       <span id="tilt-status">Not tilting</span></p>
-    <p><strong>Markers:</strong> 
-      <span id="markerA-status">❌ Not found</span> | 
-      <span id="markerB-status">❌ Not found</span>
-    </p>
-    <button onclick="resetExperiment()" style="margin-top:5px; padding:5px 10px;">
-      Reset Experiment
-    </button>
-  </div>
 
-  <!-- AR SCENE -->
-  <a-scene 
-    embedded 
-    arjs="sourceType: webcam; debugUIEnabled: false;"
+  <a-scene
+    embedded
+    arjs="debugUIEnabled:false;"
     device-orientation-permission-ui="enabled: true">
-    
-    <!-- Lights -->
-    <a-light type="ambient" color="#FFFFFF" intensity="0.8"></a-light>
-    <a-light type="directional" position="1 1 1" intensity="0.5"></a-light>
-    
-    <!-- TEST TUBE A (Blue - with drop system) -->
-    <a-marker 
-      type="pattern" 
-      url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.patt"
-      marker-tracker="id: A"
-      smooth="true"
-      smoothCount="5"
-      smoothTolerance="0.01">
-      
-      <a-entity id="tubeA" drop-system position="0 0 0">
-        <!-- Glass Tube -->
+
+    <!-- Lighting -->
+    <a-light type="ambient" intensity="0.8"></a-light>
+    <a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
+
+    <!-- ========== TEST TUBE A ========= -->
+    <a-marker
+      type="pattern"
+      url="markers/testtube_markerA.patt"
+      marker-tracker="id: A">
+
+      <a-entity id="tubeA" drop-spawner position="0 0 0">
+        <!-- Glass -->
         <a-cylinder
           radius="0.15"
           height="0.6"
           position="0 0.3 0"
-          color="#FFFFFF"
-          opacity="0.2"
+          color="#ffffff"
+          opacity="0.25"
           roughness="0.1"
-          metalness="0.8">
+          metalness="0.5">
         </a-cylinder>
-        
-        <!-- BLUE LIQUID (Stable) -->
+
+        <!-- Liquid A -->
         <a-cylinder
           id="liquidA"
           radius="0.13"
-          height="0.28"
-          position="0 0.14 0"
-          color="#0088FF"
-          opacity="0.85"
-          roughness="0.3">
+          height="0.3"
+          position="0 0.15 0"
+          color="#0088ff"
+          opacity="0.9"
+          roughness="0.2"
+          metalness="0.1">
         </a-cylinder>
-        
-        <!-- Liquid Surface -->
+
+        <!-- Liquid surface for better visual -->
         <a-circle
-          id="surfaceA"
           radius="0.13"
-          position="0 0.28 0"
-          color="#0088FF"
+          position="0 0.3 0"
+          color="#0088ff"
           opacity="0.9"
           rotation="-90 0 0">
         </a-circle>
-        
+
       </a-entity>
+
     </a-marker>
-    
-    <!-- TEST TUBE B (Yellow) -->
-    <a-marker 
-      type="pattern" 
-      url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.patt"
-      marker-tracker="id: B"
-      smooth="true"
-      smoothCount="5"
-      smoothTolerance="0.01">
-      
+
+    <!-- ========== TEST TUBE B ========= -->
+    <a-marker
+      type="pattern"
+      url="markers/testtube_markerB.patt"
+      marker-tracker="id: B">
+
       <a-entity position="0 0 0">
-        <!-- Glass Tube -->
+        <!-- Glass -->
         <a-cylinder
           radius="0.15"
           height="0.6"
           position="0 0.3 0"
-          color="#FFFFFF"
-          opacity="0.2"
+          color="#ffffff"
+          opacity="0.25"
           roughness="0.1"
-          metalness="0.8">
+          metalness="0.5">
         </a-cylinder>
-        
-        <!-- YELLOW LIQUID (Stable) -->
+
+        <!-- Liquid B -->
         <a-cylinder
           id="liquidB"
           radius="0.13"
-          height="0.10"
-          position="0 0.05 0"
-          color="#FFFF00"
-          opacity="0.85"
-          roughness="0.3">
+          height="0.05"
+          position="0 0.025 0"
+          color="#ffff00"
+          opacity="0.9"
+          roughness="0.2"
+          metalness="0.1">
         </a-cylinder>
-        
-        <!-- Liquid Surface -->
+
+        <!-- Liquid surface -->
         <a-circle
-          id="surfaceB"
           radius="0.13"
-          position="0 0.10 0"
-          color="#FFFF00"
+          position="0 0.05 0"
+          color="#ffff00"
           opacity="0.9"
           rotation="-90 0 0">
         </a-circle>
-        
+
       </a-entity>
+
     </a-marker>
-    
+
     <!-- Camera -->
     <a-entity camera></a-entity>
-    
   </a-scene>
   
-  <!-- Instructions Overlay -->
-  <div style="position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); 
-              background: rgba(0,0,0,0.7); color: white; padding: 15px; border-radius: 10px;
-              text-align: center; max-width: 90%; z-index: 1000;">
-    <h4 style="margin: 0 0 10px 0;">📌 HOW TO USE:</h4>
-    <p style="margin: 5px 0;">1. Show HIRO marker for BLUE test tube</p>
-    <p style="margin: 5px 0;">2. Show KANJI marker for YELLOW test tube</p>
-    <p style="margin: 5px 0;">3. <strong>Tilt phone FORWARD</strong> to drop blue liquid</p>
-    <p style="margin: 5px 0;">4. Tilt more than 40° for reaction</p>
-    
-    <div style="margin-top: 10px; font-size: 12px; color: #aaa;">
-      <p>Markers: <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank">HIRO</a> | 
-         <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png" target="_blank">KANJI</a></p>
-    </div>
+  <!-- Instructions -->
+  <div style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
+              background: rgba(0,0,0,0.8); color: white; padding: 15px; 
+              border-radius: 10px; text-align: center; max-width: 90%; z-index: 1000;">
+    <h4 style="margin: 0 0 10px 0;">📌 INSTRUCTIONS:</h4>
+    <p style="margin: 5px 0;">1. Show both markers (A and B)</p>
+    <p style="margin: 5px 0;">2. <strong>Tilt phone FORWARD</strong> to pour</p>
+    <p style="margin: 5px 0;">3. Watch blue droplets fall into yellow tube</p>
+    <p style="margin: 5px 0;">4. When all blue is poured, reaction happens!</p>
   </div>
-  
-  <script>
-    // Auto-start instructions
-    setTimeout(() => {
-      if (!tubeAVisible && !tubeBVisible) {
-        document.getElementById('info').innerHTML += 
-          '<p style="color:#FF9900; margin-top:5px;">Show HIRO or KANJI marker to begin</p>';
-      }
-    }, 3000);
-  </script>
 </body>
 </html>
