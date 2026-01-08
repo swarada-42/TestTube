@@ -2,11 +2,10 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Visible Droplets</title>
+  <title>AR Chemical Mixing – Interactive Pouring</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-
   <!-- AR.js -->
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
@@ -20,137 +19,213 @@
       position: absolute;
       top: 10px;
       left: 10px;
-      background: rgba(0,0,0,0.8);
+      background: rgba(0,0,0,0.9);
       color: white;
-      padding: 10px;
+      padding: 15px;
       border-radius: 10px;
       z-index: 1000;
-      max-width: 80%;
+      max-width: 85%;
+      border: 2px solid #0088ff;
     }
-    .drop-counter {
+    .instructions {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(0,100,255,0.8);
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.9);
       color: white;
-      padding: 10px;
+      padding: 15px;
       border-radius: 10px;
+      text-align: center;
+      max-width: 95%;
       z-index: 1000;
+      border: 2px solid #ffff00;
+    }
+    .action-btn {
+      position: absolute;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0088ff;
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      z-index: 1000;
+      box-shadow: 0 4px 15px rgba(0,136,255,0.4);
+    }
+    .pour-animation {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      color: #0088ff;
+      z-index: 1000;
+      animation: pourFlow 2s ease-in-out;
+      display: none;
+    }
+    @keyframes pourFlow {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+      50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+      100% { opacity: 0; transform: translate(-50%, -100%) scale(0.5); }
     }
   </style>
 
   <script>
-    // Liquid levels
-    let levelA = 0.3;
-    let levelB = 0.05;
-    let dropCount = 0;
-    let activeDrops = [];
-
-    const MIN = 0.05;
-    const MAX = 0.3;
-    const SPEED = 0.008;
-
-    // State flags
+    // State variables
     let tubeAVisible = false;
     let tubeBVisible = false;
+    let isPouring = false;
     let reactionDone = false;
-    let tiltThreshold = 30;
-    let lastDropTime = 0;
-    const dropInterval = 300;
-
-    // MARKER TRACKING
-    AFRAME.registerComponent("marker-tracker", {
-      schema: { id: { type: "string" } },
-
-      init() {
-        this.el.addEventListener("markerFound", () => {
-          if (this.data.id === "A") {
-            tubeAVisible = true;
-            document.getElementById("marker-a-status").textContent = "✅ Found";
-          }
-          if (this.data.id === "B") {
-            tubeBVisible = true;
-            document.getElementById("marker-b-status").textContent = "✅ Found";
-          }
-          updateStatus();
-        });
-
-        this.el.addEventListener("markerLost", () => {
-          if (this.data.id === "A") {
-            tubeAVisible = false;
-            document.getElementById("marker-a-status").textContent = "❌ Not found";
-          }
-          if (this.data.id === "B") {
-            tubeBVisible = false;
-            document.getElementById("marker-b-status").textContent = "❌ Not found";
-          }
-          updateStatus();
-        });
-      }
-    });
-
-    // DROPLET SYSTEM - Creates visible droplets
-    AFRAME.registerComponent("drop-spawner", {
+    let pourAngle = 0;
+    let pourProgress = 0;
+    let dropCount = 0;
+    let activeDrops = [];
+    
+    // Liquid levels
+    let blueLiquidLevel = 0.3;
+    let yellowLiquidLevel = 0.05;
+    const BLUE_MAX = 0.3;
+    const BLUE_MIN = 0.05;
+    const YELLOW_MAX = 0.55; // Higher to accommodate mixed liquid
+    
+    // POURING SYSTEM
+    AFRAME.registerComponent("pour-controller", {
       init: function () {
-        console.log("Drop spawner initialized");
+        console.log("Pour controller initialized");
         
+        // Tilt detection for pouring
         window.addEventListener("deviceorientation", (event) => {
           const tilt = event.beta || 0;
-          const currentTime = Date.now();
+          const gamma = event.gamma || 0; // Left-right tilt
           
           // Update tilt display
           document.getElementById("tilt-display").textContent = Math.round(tilt) + '°';
           
-          // Spawn droplets when tilted and tube A is visible
-          if (tilt > tiltThreshold && tubeAVisible && !reactionDone) {
-            if (currentTime - lastDropTime > dropInterval) {
-              lastDropTime = currentTime;
-              this.spawnDrop();
-              
-              // Also update liquid levels
-              updateLiquidLevels();
+          // Only start pouring if both tubes are visible
+          if (tubeAVisible && tubeBVisible && !reactionDone) {
+            // Detect pouring motion (phone tilted sideways and forward)
+            if (Math.abs(gamma) > 45 && tilt > 20 && !isPouring) {
+              this.startPouring();
+            }
+            
+            // If pouring is active, continue based on tilt
+            if (isPouring) {
+              this.updatePouring(tilt, gamma);
             }
           }
-          
-          // Check for reaction
-          if (tilt > 40 && tubeAVisible && tubeBVisible && !reactionDone) {
-            if (levelA <= MIN + 0.01) {
-              triggerReaction();
-            }
+        });
+        
+        // Touch/click to pour (alternative control)
+        this.el.addEventListener("click", () => {
+          if (tubeAVisible && tubeBVisible && !reactionDone && !isPouring) {
+            this.startPouring();
           }
         });
       },
-
-      spawnDrop: function () {
+      
+      startPouring: function () {
+        console.log("Starting pour...");
+        isPouring = true;
+        pourProgress = 0;
+        
+        // Show pour animation
+        const pourAnim = document.getElementById("pour-animation");
+        pourAnim.style.display = "block";
+        pourAnim.textContent = "💧";
+        
+        // Update status
+        document.getElementById("pour-status").textContent = "POURING...";
+        document.getElementById("pour-status").style.color = "#0088ff";
+        
+        // Hide after animation
+        setTimeout(() => {
+          pourAnim.style.display = "none";
+        }, 2000);
+      },
+      
+      updatePouring: function (tilt, gamma) {
+        // Calculate pour intensity based on tilt
+        const pourIntensity = Math.min((Math.abs(gamma) - 30) / 60, 1);
+        
+        if (pourIntensity > 0 && blueLiquidLevel > BLUE_MIN) {
+          // Reduce blue liquid
+          blueLiquidLevel -= 0.005 * pourIntensity;
+          blueLiquidLevel = Math.max(BLUE_MIN, blueLiquidLevel);
+          
+          // Increase yellow liquid (with mixed color)
+          yellowLiquidLevel += 0.005 * pourIntensity;
+          yellowLiquidLevel = Math.min(YELLOW_MAX, yellowLiquidLevel);
+          
+          // Update tube A (blue)
+          const liquidA = document.querySelector("#liquidA");
+          if (liquidA) {
+            liquidA.setAttribute("height", blueLiquidLevel);
+            liquidA.setAttribute("position", `0 ${blueLiquidLevel / 2} 0`);
+          }
+          
+          // Update tube B (yellow -> mixing)
+          const liquidB = document.querySelector("#liquidB");
+          if (liquidB) {
+            liquidB.setAttribute("height", yellowLiquidLevel);
+            liquidB.setAttribute("position", `0 ${yellowLiquidLevel / 2} 0`);
+            
+            // Calculate mixed color (blue + yellow = green)
+            const mixRatio = (yellowLiquidLevel - 0.05) / (YELLOW_MAX - 0.05);
+            const greenValue = Math.min(255, 150 + mixRatio * 105);
+            const mixedColor = `rgb(${255 - mixRatio * 200}, ${greenValue}, ${mixRatio * 100})`;
+            
+            liquidB.setAttribute("color", mixedColor);
+          }
+          
+          // Create pouring droplets
+          this.createPouringDroplets(pourIntensity);
+          
+          // Check if pouring is complete
+          if (blueLiquidLevel <= BLUE_MIN + 0.01) {
+            this.finishPouring();
+          }
+        }
+      },
+      
+      createPouringDroplets: function (intensity) {
+        // Create droplets based on pour intensity
+        const dropletCount = Math.floor(intensity * 3);
+        
+        for (let i = 0; i < dropletCount; i++) {
+          setTimeout(() => {
+            this.createDroplet();
+          }, i * 100);
+        }
+      },
+      
+      createDroplet: function () {
         dropCount++;
         document.getElementById("drop-count").textContent = dropCount;
         
-        // Create a visible droplet
+        // Create droplet
         const drop = document.createElement("a-sphere");
-        drop.setAttribute("radius", "0.03");
+        drop.setAttribute("radius", "0.025");
         drop.setAttribute("color", "#0088ff");
         drop.setAttribute("opacity", "0.9");
         
-        // Position at the top of tube A's liquid
-        // Get tube A's position
-        const tubeA = document.querySelector("#tubeA");
+        // Position at tube A's pouring point (simulate pouring from top)
+        // We'll position it relative to tube A marker
+        const tubeA = document.querySelector("[marker-tracker='id: A']");
         if (!tubeA) return;
         
+        // Create a pouring arc effect
         drop.setAttribute("position", {
           x: 0,
-          y: 0.28, // Top of liquid surface
+          y: 0.4, // Starting from top of tube
           z: 0
         });
         
-        // Add glow effect for better visibility
-        drop.setAttribute("light", {
-          type: "point",
-          color: "#0088ff",
-          intensity: 0.3,
-          distance: 0.5
-        });
-        
-        // Add to tube A
+        // Add to scene
         tubeA.appendChild(drop);
         
         // Store drop
@@ -158,42 +233,33 @@
         drop.setAttribute('id', dropId);
         activeDrops.push({id: dropId, element: drop});
         
-        // Animate drop falling
-        this.animateDrop(drop, dropId);
+        // Animate droplet in an arc toward tube B
+        this.animatePouringDroplet(drop, dropId);
       },
-
-      animateDrop: function (drop, dropId) {
-        let startY = 0.28;
-        let currentY = startY;
-        const fallSpeed = 0.01;
-        const animationDuration = 1500;
+      
+      animatePouringDroplet: function (drop, dropId) {
         const startTime = Date.now();
+        const duration = 1200; // 1.2 seconds
         
         const animate = () => {
           const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
           
-          if (elapsed < animationDuration && !reactionDone) {
-            // Move drop down
-            const progress = elapsed / animationDuration;
-            currentY = startY - (startY + 0.3) * progress;
+          if (progress < 1) {
+            // Parabolic arc motion
+            const x = Math.sin(progress * Math.PI) * 0.3; // Arc to the right
+            const y = 0.4 - (progress * 0.5); // Falling down
+            const z = Math.cos(progress * Math.PI) * 0.1; // Slight forward motion
             
-            drop.setAttribute("position", {
-              x: 0,
-              y: currentY,
-              z: 0
-            });
+            drop.setAttribute("position", { x, y, z });
             
-            // Slight wobble effect
-            const wobble = Math.sin(progress * Math.PI * 4) * 0.02;
-            drop.setAttribute("position", {
-              x: wobble,
-              y: currentY,
-              z: wobble * 0.5
-            });
+            // Scale down as it falls
+            const scale = 1 - progress * 0.3;
+            drop.setAttribute("scale", { x: scale, y: scale, z: scale });
             
             requestAnimationFrame(animate);
           } else {
-            // Remove drop
+            // Remove drop when it reaches tube B
             if (drop.parentNode) {
               drop.parentNode.removeChild(drop);
             }
@@ -204,104 +270,174 @@
         };
         
         requestAnimationFrame(animate);
+      },
+      
+      finishPouring: function () {
+        console.log("Pouring complete!");
+        isPouring = false;
+        
+        // Complete the reaction
+        reactionDone = true;
+        
+        // Final mixed color (green)
+        const liquidB = document.querySelector("#liquidB");
+        if (liquidB) {
+          liquidB.setAttribute("color", "#00ff88");
+          
+          // Add glow effect
+          liquidB.setAttribute("light", {
+            type: "point",
+            color: "#00ff88",
+            intensity: 0.5,
+            distance: 1
+          });
+        }
+        
+        // Update status
+        document.getElementById("pour-status").textContent = "REACTION COMPLETE!";
+        document.getElementById("pour-status").style.color = "#00ff88";
+        document.getElementById("experiment-status").innerHTML = 
+          "<span style='color:#00ff88; font-size:18px;'>🎉 MIXING SUCCESSFUL! 🎉</span>";
+        
+        // Clear all droplets
+        this.clearAllDrops();
+        
+        // Show celebration
+        const pourAnim = document.getElementById("pour-animation");
+        pourAnim.style.display = "block";
+        pourAnim.textContent = "🎉";
+        pourAnim.style.color = "#00ff88";
+        pourAnim.style.fontSize = "60px";
+        
+        setTimeout(() => {
+          pourAnim.style.display = "none";
+        }, 3000);
+      },
+      
+      clearAllDrops: function () {
+        activeDrops.forEach(drop => {
+          if (drop.element.parentNode) {
+            drop.element.parentNode.removeChild(drop.element);
+          }
+        });
+        activeDrops = [];
       }
     });
-
-    // Update liquid levels
-    function updateLiquidLevels() {
-      if (!tubeAVisible || !tubeBVisible || reactionDone) return;
-      
-      const liquidA = document.querySelector("#liquidA");
-      const liquidB = document.querySelector("#liquidB");
-      if (!liquidA || !liquidB) return;
-
-      // Pour from A → B
-      if (levelA > MIN) {
-        levelA -= SPEED * 0.5; // Slower since drops are separate
-        levelB += SPEED * 0.5;
+    
+    // MARKER TRACKING
+    AFRAME.registerComponent("marker-tracker", {
+      schema: { id: { type: "string" } },
+      init() {
+        this.el.addEventListener("markerFound", () => {
+          console.log(`Marker ${this.data.id} found`);
+          if (this.data.id === "A") {
+            tubeAVisible = true;
+            updateMarkerStatus("marker-a-status", "✅ BLUE TUBE", "#0088ff");
+          }
+          if (this.data.id === "B") {
+            tubeBVisible = true;
+            updateMarkerStatus("marker-b-status", "✅ YELLOW TUBE", "#ffff00");
+          }
+          updateStatus();
+        });
+        
+        this.el.addEventListener("markerLost", () => {
+          if (this.data.id === "A") {
+            tubeAVisible = false;
+            updateMarkerStatus("marker-a-status", "❌ Not found", "#ff4444");
+          }
+          if (this.data.id === "B") {
+            tubeBVisible = false;
+            updateMarkerStatus("marker-b-status", "❌ Not found", "#ff4444");
+          }
+          updateStatus();
+        });
       }
-
-      // Clamp values
-      levelA = Math.max(MIN, levelA);
-      levelB = Math.min(MAX, levelB);
-
-      // Update Tube A
-      liquidA.setAttribute("height", levelA);
-      liquidA.setAttribute("position", `0 ${levelA / 2} 0`);
-
-      // Update Tube B
-      liquidB.setAttribute("height", levelB);
-      liquidB.setAttribute("position", `0 ${levelB / 2} 0`);
-    }
-
-    // Trigger reaction
-    function triggerReaction() {
-      reactionDone = true;
-      
-      const liquidB = document.querySelector("#liquidB");
-      if (liquidB) {
-        liquidB.setAttribute("color", "#00ff00");
-        document.getElementById("reaction-status").textContent = "🎉 Reaction Complete!";
-        document.getElementById("reaction-status").style.color = "#00ff00";
+    });
+    
+    // HELPER FUNCTIONS
+    function updateMarkerStatus(elementId, text, color) {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.textContent = text;
+        element.style.color = color;
+        element.style.fontWeight = "bold";
       }
-      
-      // Clear all drops
-      clearAllDrops();
     }
-
-    // Clear all drops
-    function clearAllDrops() {
-      activeDrops.forEach(drop => {
-        if (drop.element.parentNode) {
-          drop.element.parentNode.removeChild(drop.element);
-        }
-      });
-      activeDrops = [];
-    }
-
-    // Update status
+    
     function updateStatus() {
       const status = document.getElementById("experiment-status");
       if (tubeAVisible && tubeBVisible) {
-        status.textContent = "Ready! Tilt phone forward";
+        status.innerHTML = "<span style='color:#00ff00'>✅ READY! Tilt phone to pour</span>";
       } else if (tubeAVisible) {
-        status.textContent = "Tube A ready";
+        status.innerHTML = "<span style='color:#0088ff'>🔵 Blue tube ready</span>";
       } else if (tubeBVisible) {
-        status.textContent = "Tube B ready";
+        status.innerHTML = "<span style='color:#ffff00'>🟡 Yellow tube ready</span>";
       } else {
-        status.textContent = "Show marker A or B";
+        status.innerHTML = "<span style='color:#ff4444'>👆 Show both markers</span>";
       }
     }
-
-    // Reset function
+    
+    // MANUAL POUR BUTTON (alternative control)
+    window.startManualPour = function() {
+      if (tubeAVisible && tubeBVisible && !reactionDone) {
+        const controller = document.querySelector("#tubeA").components["pour-controller"];
+        if (controller) {
+          controller.startPouring();
+          
+          // Simulate pouring for 3 seconds
+          let pourTime = 0;
+          const pourInterval = setInterval(() => {
+            if (pourTime < 3000 && blueLiquidLevel > BLUE_MIN) {
+              controller.updatePouring(40, 60); // Simulated tilt
+              pourTime += 100;
+            } else {
+              clearInterval(pourInterval);
+              if (blueLiquidLevel <= BLUE_MIN + 0.01) {
+                controller.finishPouring();
+              }
+            }
+          }, 100);
+        }
+      }
+    };
+    
+    // RESET FUNCTION
     window.resetExperiment = function() {
-      reactionDone = false;
-      dropCount = 0;
-      levelA = 0.3;
-      levelB = 0.05;
+      console.log("Resetting experiment...");
       
-      // Reset tube A
+      isPouring = false;
+      reactionDone = false;
+      pourProgress = 0;
+      dropCount = 0;
+      blueLiquidLevel = 0.3;
+      yellowLiquidLevel = 0.05;
+      
+      // Reset tube A (blue)
       const liquidA = document.querySelector("#liquidA");
       if (liquidA) {
         liquidA.setAttribute("height", "0.3");
         liquidA.setAttribute("position", "0 0.15 0");
+        liquidA.setAttribute("color", "#0088ff");
       }
       
-      // Reset tube B
+      // Reset tube B (yellow)
       const liquidB = document.querySelector("#liquidB");
       if (liquidB) {
         liquidB.setAttribute("height", "0.05");
         liquidB.setAttribute("position", "0 0.025 0");
-        liquidB.setAttribute("color", "yellow");
+        liquidB.setAttribute("color", "#ffff00");
+        liquidB.removeAttribute("light");
       }
       
       // Clear drops
-      clearAllDrops();
+      const controller = document.querySelector("#tubeA").components["pour-controller"];
+      if (controller) controller.clearAllDrops();
       
       // Update displays
       document.getElementById("drop-count").textContent = "0";
-      document.getElementById("reaction-status").textContent = "Not reacted";
-      document.getElementById("reaction-status").style.color = "white";
+      document.getElementById("pour-status").textContent = "Ready to pour";
+      document.getElementById("pour-status").style.color = "white";
       document.getElementById("tilt-display").textContent = "0°";
       
       updateStatus();
@@ -314,40 +450,53 @@
 <body style="margin:0; overflow:hidden;">
   <!-- HUD Display -->
   <div id="hud">
-    <h3 style="margin: 0 0 10px 0;">🧪 AR Chemical Experiment</h3>
-    <p><strong>Status:</strong> <span id="experiment-status">Show marker A or B</span></p>
-    <p><strong>Tilt:</strong> <span id="tilt-display">0°</span></p>
+    <h2 style="margin: 0 0 10px 0; color: #00aaff;">🧪 INTERACTIVE POURING EXPERIMENT</h2>
+    <p><strong>Status:</strong> <span id="experiment-status">Show both markers</span></p>
+    <p><strong>Tilt:</strong> <span id="tilt-display">0°</span> | 
+       <strong>Pour Status:</strong> <span id="pour-status">Ready to pour</span></p>
     <p><strong>Markers:</strong> 
-      A: <span id="marker-a-status">❌</span> | 
-      B: <span id="marker-b-status">❌</span>
+      <span id="marker-a-status" style="padding: 3px 10px; border-radius: 5px; background: #222;">❌ Blue Tube</span> 
+      <span id="marker-b-status" style="padding: 3px 10px; border-radius: 5px; background: #222;">❌ Yellow Tube</span>
     </p>
-    <p><strong>Reaction:</strong> <span id="reaction-status">Not reacted</span></p>
-    <button onclick="resetExperiment()" style="margin-top: 5px; padding: 5px 10px;">
-      Reset Experiment
+    <p><strong>💧 Droplets:</strong> <span id="drop-count">0</span></p>
+    <button onclick="resetExperiment()" 
+            style="margin-top: 10px; padding: 8px 15px; background: #ff4444; 
+                   color: white; border: none; border-radius: 5px; font-weight: bold;
+                   cursor: pointer; width: 100%;">
+      🔄 Reset Experiment
     </button>
   </div>
   
-  <!-- Drop Counter -->
-  <div class="drop-counter">
-    💧 Drops: <span id="drop-count">0</span>
-  </div>
+  <!-- Pour Animation -->
+  <div id="pour-animation" class="pour-animation"></div>
+  
+  <!-- Manual Pour Button -->
+  <button class="action-btn" onclick="startManualPour()">
+    🫗 POUR BLUE INTO YELLOW
+  </button>
 
-  <a-scene
-    embedded
-    arjs="debugUIEnabled:false;"
+  <!-- AR Scene -->
+  <a-scene 
+    embedded 
+    arjs="debugUIEnabled: false;"
+    renderer="logarithmicDepthBuffer: true;"
     device-orientation-permission-ui="enabled: true">
+    
+    <!-- Lights -->
+    <a-light type="ambient" color="#ffffff" intensity="0.8"></a-light>
+    <a-light type="directional" position="2 3 1" intensity="0.7"></a-light>
+    <a-light type="point" position="0 2 0" intensity="0.3" color="#0088ff"></a-light>
 
-    <!-- Lighting -->
-    <a-light type="ambient" intensity="0.8"></a-light>
-    <a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
-
-    <!-- ========== TEST TUBE A ========= -->
+    <!-- ========== TEST TUBE A (BLUE - To Pour From) ========= -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
-      marker-tracker="id: A">
+      marker-tracker="id: A"
+      smooth="true"
+      smoothCount="10"
+      smoothTolerance="0.01">
 
-      <a-entity id="tubeA" drop-spawner position="0 0 0">
+      <a-entity id="tubeA" pour-controller position="0 0 0">
         <!-- Glass -->
         <a-cylinder
           radius="0.15"
@@ -359,7 +508,7 @@
           metalness="0.5">
         </a-cylinder>
 
-        <!-- Liquid A -->
+        <!-- Blue Liquid -->
         <a-cylinder
           id="liquidA"
           radius="0.13"
@@ -367,11 +516,10 @@
           position="0 0.15 0"
           color="#0088ff"
           opacity="0.9"
-          roughness="0.2"
-          metalness="0.1">
+          roughness="0.2">
         </a-cylinder>
 
-        <!-- Liquid surface for better visual -->
+        <!-- Liquid surface -->
         <a-circle
           radius="0.13"
           position="0 0.3 0"
@@ -384,25 +532,28 @@
 
     </a-marker>
 
-    <!-- ========== TEST TUBE B ========= -->
+    <!-- ========== TEST TUBE B (YELLOW - To Pour Into) ========= -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
-      marker-tracker="id: B">
+      marker-tracker="id: B"
+      smooth="true"
+      smoothCount="10"
+      smoothTolerance="0.01">
 
       <a-entity position="0 0 0">
         <!-- Glass -->
         <a-cylinder
           radius="0.15"
-          height="0.6"
-          position="0 0.3 0"
+          height="0.7" <!-- Taller to accommodate mixed liquid -->
+          position="0 0.35 0"
           color="#ffffff"
           opacity="0.25"
           roughness="0.1"
           metalness="0.5">
         </a-cylinder>
 
-        <!-- Liquid B -->
+        <!-- Yellow Liquid (will turn green) -->
         <a-cylinder
           id="liquidB"
           radius="0.13"
@@ -410,8 +561,7 @@
           position="0 0.025 0"
           color="#ffff00"
           opacity="0.9"
-          roughness="0.2"
-          metalness="0.1">
+          roughness="0.2">
         </a-cylinder>
 
         <!-- Liquid surface -->
@@ -432,14 +582,16 @@
   </a-scene>
   
   <!-- Instructions -->
-  <div style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-              background: rgba(0,0,0,0.8); color: white; padding: 15px; 
-              border-radius: 10px; text-align: center; max-width: 90%; z-index: 1000;">
-    <h4 style="margin: 0 0 10px 0;">📌 INSTRUCTIONS:</h4>
-    <p style="margin: 5px 0;">1. Show both markers (A and B)</p>
-    <p style="margin: 5px 0;">2. <strong>Tilt phone FORWARD</strong> to pour</p>
-    <p style="margin: 5px 0;">3. Watch blue droplets fall into yellow tube</p>
-    <p style="margin: 5px 0;">4. When all blue is poured, reaction happens!</p>
+  <div class="instructions">
+    <h3 style="margin: 0 0 10px 0;">🎯 HOW TO POUR:</h3>
+    <p style="margin: 5px 0; color: #0088ff;">1. Show <strong>BLUE</strong> and <strong>YELLOW</strong> markers</p>
+    <p style="margin: 5px 0; color: #ffff00;">2. <strong>TILT phone SIDEWAYS + FORWARD</strong> to pour</p>
+    <p style="margin: 5px 0; color: #00ff88;">3. Watch droplets flow from blue to yellow tube</p>
+    <p style="margin: 5px 0; color: #ffaa00;">4. See colors mix in real-time!</p>
+    <p style="margin: 10px 0 0 0; font-size: 14px; color: #aaa;">
+      Or click the <span style="color:#0088ff;">POUR</span> button above for manual control
+    </p>
   </div>
+
 </body>
 </html>
