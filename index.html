@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Stable Liquid + Droplets</title>
+  <title>AR Chemical Mixing – Droplet Simulation</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -14,39 +14,83 @@
     let tubeAVisible = false;
     let tubeBVisible = false;
     let reactionDone = false;
+    let tiltThreshold = 35; // Angle at which droplets start falling
+    let lastDropTime = 0;
+    const dropInterval = 300; // Milliseconds between drops
 
     // DROPLET SPAWNER COMPONENT
     AFRAME.registerComponent("drop-spawner", {
       init: function () {
+        console.log("Drop spawner initialized for tube A");
+        
+        // Listen for device tilt
         window.addEventListener("deviceorientation", (event) => {
-          const tilt = event.beta || 0;
-
-          if (tilt > 35 && tubeAVisible && !reactionDone) {
+          const tilt = event.beta || 0; // beta is front-to-back tilt
+          const currentTime = Date.now();
+          
+          // Check if tube A is visible, tilted enough, and enough time has passed since last drop
+          if (tilt > tiltThreshold && tubeAVisible && !reactionDone && 
+              (currentTime - lastDropTime) > dropInterval) {
+            
+            lastDropTime = currentTime;
             this.spawnDrop();
           }
         });
       },
 
       spawnDrop: function () {
+        // Create a droplet
         const drop = document.createElement("a-sphere");
-        drop.setAttribute("radius", "0.01");
+        drop.setAttribute("radius", "0.02"); // Slightly larger for better visibility
         drop.setAttribute("color", "blue");
-        drop.setAttribute("position", "0 0.05 0");
-
+        drop.setAttribute("opacity", "0.8");
+        
+        // Position drop at the edge of the test tube (where liquid would spill)
+        // Test tube radius is 0.15, liquid radius is 0.13
+        // Position it slightly above the liquid surface
+        drop.setAttribute("position", "0 0.28 0"); // Just above the liquid surface
+        
+        // Add to scene
         this.el.sceneEl.appendChild(drop);
+        
+        // Animate the drop falling
         this.animateDrop(drop);
       },
 
       animateDrop: function (drop) {
-        const interval = setInterval(() => {
-          const pos = drop.getAttribute("position");
-          if (pos.y < -0.2) {
-            drop.parentNode.removeChild(drop);
-            clearInterval(interval);
+        const startTime = Date.now();
+        const duration = 1000; // 1 second fall duration
+        const startY = 0.28;
+        const endY = -0.2; // Fall below the tube
+        
+        const fallAnimation = () => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          
+          // Ease out for more natural fall
+          const easeProgress = 1 - Math.pow(1 - progress, 3);
+          
+          // Calculate current Y position
+          const currentY = startY - (startY - endY) * easeProgress;
+          
+          // Move the drop
+          drop.setAttribute("position", `0 ${currentY} 0`);
+          
+          // Shrink drop slightly as it falls for perspective
+          const scale = 1 - (progress * 0.3);
+          drop.setAttribute("scale", `${scale} ${scale} ${scale}`);
+          
+          if (progress < 1) {
+            requestAnimationFrame(fallAnimation);
           } else {
-            drop.setAttribute("position", `0 ${pos.y - 0.01} 0`);
+            // Remove drop when animation completes
+            if (drop.parentNode) {
+              drop.parentNode.removeChild(drop);
+            }
           }
-        }, 30);
+        };
+        
+        requestAnimationFrame(fallAnimation);
       }
     });
 
@@ -56,94 +100,172 @@
 
       init() {
         this.el.addEventListener("markerFound", () => {
+          console.log(`Marker ${this.data.id} found`);
           if (this.data.id === "A") tubeAVisible = true;
           if (this.data.id === "B") tubeBVisible = true;
         });
 
         this.el.addEventListener("markerLost", () => {
+          console.log(`Marker ${this.data.id} lost`);
           if (this.data.id === "A") tubeAVisible = false;
           if (this.data.id === "B") tubeBVisible = false;
         });
       }
     });
 
-    // COLOR CHANGE (REACTION) WITHOUT POURING
+    // COLOR CHANGE (REACTION) WHEN BOTH TUBES ARE VISIBLE AND TILTED
     window.addEventListener("deviceorientation", (event) => {
       const tilt = event.beta || 0;
-
+      
+      // Reaction happens when both tubes are visible and phone is tilted
       if (tubeAVisible && tubeBVisible && tilt > 40 && !reactionDone) {
+        console.log("Reaction triggered!");
         const liquidB = document.querySelector("#liquidB");
         if (liquidB) {
           liquidB.setAttribute("color", "green");
           reactionDone = true;
+          
+          // Optional: Increase liquid level in tube B to simulate mixing
+          liquidB.setAttribute("height", "0.38");
+          liquidB.setAttribute("position", "0 0.19 0");
         }
       }
     });
+    
+    // Optional: Add keyboard controls for testing on desktop
+    window.addEventListener("keydown", (event) => {
+      if (event.key === 'd' || event.key === 'D') {
+        // Simulate droplet spawn with 'D' key
+        const spawner = document.querySelector("#tubeA").components["drop-spawner"];
+        if (spawner) {
+          spawner.spawnDrop();
+        }
+      }
+    });
+    
+    // Display tilt info for debugging
+    window.addEventListener("deviceorientation", (event) => {
+      const tiltInfo = document.getElementById("tilt-info");
+      if (tiltInfo) {
+        tiltInfo.textContent = `Tilt: ${Math.round(event.beta || 0)}°`;
+      }
+    });
+
   </script>
 
 </head>
 
 <body style="margin:0; overflow:hidden;">
-  <a-scene
-    embedded
-    arjs="debugUIEnabled:false;">
+  <!-- Tilt indicator (optional, for debugging) -->
+  <div id="tilt-info" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.7); color:white; padding:5px; z-index:1000;">
+    Tilt: 0°
+  </div>
+  
+  <!-- Desktop instructions (optional) -->
+  <div id="desktop-info" style="position:absolute; top:40px; left:10px; background:rgba(0,0,0,0.7); color:white; padding:5px; z-index:1000; display:none;">
+    Press 'D' to simulate droplet
+  </div>
+  
+  <script>
+    // Show desktop instructions if not on mobile
+    if (!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      document.getElementById("desktop-info").style.display = "block";
+    }
+  </script>
 
+  <a-scene embedded arjs="debugUIEnabled:false;">
     <a-light type="ambient" intensity="1"></a-light>
+    <a-light type="directional" position="0 1 1" intensity="0.5"></a-light>
 
-    <!-- TEST TUBE A -->
+    <!-- TEST TUBE A (Blue liquid - spawns droplets when tilted) -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
-      marker-tracker="id: A">
+      marker-tracker="id: A"
+      smooth="true"
+      smoothCount="10"
+      smoothTolerance="0.01">
 
-      <a-entity id="tubeA" drop-spawner>
-
-        <!-- Glass -->
+      <a-entity id="tubeA" drop-spawner position="0 0 0">
+        <!-- Glass tube -->
         <a-cylinder
           radius="0.15"
           height="0.6"
           position="0 0.3 0"
           color="#ffffff"
-          opacity="0.25">
+          opacity="0.25"
+          roughness="0.1"
+          metalness="0.5">
         </a-cylinder>
 
-        <!-- Stable Liquid -->
+        <!-- Stable Liquid (doesn't move) -->
         <a-cylinder
           id="liquidA"
           radius="0.13"
           height="0.28"
           position="0 0.14 0"
           color="blue"
-          opacity="0.9">
+          opacity="0.9"
+          roughness="0.2"
+          metalness="0.1">
         </a-cylinder>
+
+        <!-- Liquid surface (for visual effect) -->
+        <a-circle
+          radius="0.13"
+          position="0 0.28 0"
+          color="blue"
+          opacity="0.9"
+          rotation="-90 0 0">
+        </a-circle>
 
       </a-entity>
 
     </a-marker>
 
-    <!-- TEST TUBE B -->
+    <!-- TEST TUBE B (Yellow liquid - turns green when mixed) -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
-      marker-tracker="id: B">
+      marker-tracker="id: B"
+      smooth="true"
+      smoothCount="10"
+      smoothTolerance="0.01">
 
-      <a-cylinder
-        radius="0.15"
-        height="0.6"
-        position="0 0.3 0"
-        color="#ffffff"
-        opacity="0.25">
-      </a-cylinder>
+      <a-entity position="0 0 0">
+        <!-- Glass tube -->
+        <a-cylinder
+          radius="0.15"
+          height="0.6"
+          position="0 0.3 0"
+          color="#ffffff"
+          opacity="0.25"
+          roughness="0.1"
+          metalness="0.5">
+        </a-cylinder>
 
-      <!-- Stable Liquid -->
-      <a-cylinder
-        id="liquidB"
-        radius="0.13"
-        height="0.10"
-        position="0 0.05 0"
-        color="yellow"
-        opacity="0.9">
-      </a-cylinder>
+        <!-- Stable Liquid -->
+        <a-cylinder
+          id="liquidB"
+          radius="0.13"
+          height="0.10"
+          position="0 0.05 0"
+          color="yellow"
+          opacity="0.9"
+          roughness="0.2"
+          metalness="0.1">
+        </a-cylinder>
+
+        <!-- Liquid surface -->
+        <a-circle
+          radius="0.13"
+          position="0 0.10 0"
+          color="yellow"
+          opacity="0.9"
+          rotation="-90 0 0">
+        </a-circle>
+
+      </a-entity>
 
     </a-marker>
 
