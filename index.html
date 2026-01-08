@@ -2,604 +2,444 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Chemical Mixing - TestTube Experiment</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  
-  <!-- Three.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <title>AR Chemical Mixing – Visible Droplets</title>
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
   <!-- AR.js -->
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/three.js/build/ar-threex.js"></script>
-  
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+
   <style>
     body {
       margin: 0;
       overflow: hidden;
       font-family: Arial, sans-serif;
-      background: black;
     }
     #hud {
       position: absolute;
       top: 10px;
       left: 10px;
-      background: rgba(0,0,0,0.9);
+      background: rgba(0,0,0,0.8);
       color: white;
-      padding: 15px;
+      padding: 10px;
       border-radius: 10px;
       z-index: 1000;
-      max-width: 85%;
-      border: 2px solid #0088ff;
+      max-width: 80%;
     }
-    #loading {
+    .drop-counter {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0,0,0,0.9);
+      top: 10px;
+      right: 10px;
+      background: rgba(0,100,255,0.8);
       color: white;
-      padding: 30px;
-      border-radius: 15px;
-      text-align: center;
-      z-index: 1001;
-      border: 3px solid #ff8800;
-    }
-    .action-btn {
-      position: absolute;
-      bottom: 120px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #0088ff;
-      color: white;
-      border: none;
-      padding: 12px 25px;
-      border-radius: 25px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
+      padding: 10px;
+      border-radius: 10px;
       z-index: 1000;
     }
-    canvas {
-      display: block;
-    }
   </style>
-</head>
-
-<body>
-  <!-- Loading Screen -->
-  <div id="loading">
-    <h2>🧪 Loading Chemical Experiment...</h2>
-    <p id="load-status">Initializing 3D Engine</p>
-    <div style="margin: 20px 0; height: 10px; background: #333; border-radius: 5px;">
-      <div id="progress-bar" style="width: 0%; height: 100%; background: #0088ff; border-radius: 5px; transition: width 0.3s;"></div>
-    </div>
-    <p style="color: #aaa; font-size: 14px;">Please allow camera access when prompted</p>
-  </div>
-  
-  <!-- HUD -->
-  <div id="hud" style="display: none;">
-    <h3 style="margin: 0 0 10px 0; color: #00aaff;">🧪 TEST TUBE EXPERIMENT</h3>
-    <p><strong>Status:</strong> <span id="status">Show markers to camera</span></p>
-    <p><strong>Blue Tube:</strong> <span id="blue-status">❌ Waiting for marker...</span></p>
-    <p><strong>Yellow Tube:</strong> <span id="yellow-status">❌ Waiting for marker...</span></p>
-    <p><strong>Reaction:</strong> <span id="reaction-status">Not started</span></p>
-    <div style="margin-top: 15px;">
-      <button onclick="startPouring()" style="margin-right: 10px; padding: 8px 15px; background: #0088ff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-        🫗 START POURING
-      </button>
-      <button onclick="resetExperiment()" style="padding: 8px 15px; background: #ff4444; color: white; border: none; border-radius: 5px; cursor: pointer;">
-        🔄 RESET
-      </button>
-    </div>
-  </div>
-  
-  <!-- Canvas -->
-  <div id="canvas-container"></div>
 
   <script>
-    // ========== CONFIGURATION ==========
-    // Using YOUR GitHub repository URLs
-    const GITHUB_USERNAME = 'swarada-42';
-    const REPO_NAME = 'TestTube';
-    const BRANCH = 'main'; // or 'master' depending on your repo
-    
-    // Marker URLs from YOUR GitHub repository
-    const MARKER_A_URL = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${REPO_NAME}/${BRANCH}/markers/testtube_markerA.patt`;
-    const MARKER_B_URL = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${REPO_NAME}/${BRANCH}/markers/testtube_markerB.patt`;
-    
-    console.log("Using marker URLs:");
-    console.log("Marker A:", MARKER_A_URL);
-    console.log("Marker B:", MARKER_B_URL);
-    
-    // ========== GLOBAL VARIABLES ==========
-    let scene, camera, renderer;
-    let arToolkitSource, arToolkitContext;
-    let blueTube, yellowTube;
-    let blueLiquid, yellowLiquid;
-    let isPouring = false;
+    // Liquid levels
+    let levelA = 0.3;
+    let levelB = 0.05;
+    let dropCount = 0;
+    let activeDrops = [];
+
+    const MIN = 0.05;
+    const MAX = 0.3;
+    const SPEED = 0.008;
+
+    // State flags
+    let tubeAVisible = false;
+    let tubeBVisible = false;
     let reactionDone = false;
-    let blueLevel = 1.0;
-    let yellowLevel = 0.2;
-    let loadProgress = 0;
-    
-    // ========== LOADING FUNCTIONS ==========
-    function updateLoadStatus(message, progress) {
-      document.getElementById('load-status').textContent = message;
-      loadProgress = progress;
-      document.getElementById('progress-bar').style.width = progress + '%';
-      console.log("Load:", message);
-    }
-    
-    // ========== INITIALIZATION ==========
-    function init() {
-      updateLoadStatus("Initializing 3D Engine...", 10);
-      
-      // Create scene
-      scene = new THREE.Scene();
-      
-      // Create camera
-      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-      
-      // Create renderer
-      renderer = new THREE.WebGLRenderer({ 
-        antialias: true,
-        alpha: true,
-        preserveDrawingBuffer: true
-      });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setClearColor(0x000000, 0);
-      document.getElementById('canvas-container').appendChild(renderer.domElement);
-      
-      updateLoadStatus("Adding lighting...", 20);
-      
-      // Add lights
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-      scene.add(ambientLight);
-      
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-      directionalLight.position.set(1, 2, 1);
-      scene.add(directionalLight);
-      
-      updateLoadStatus("Creating 3D models...", 40);
-      
-      // Create test tubes
-      createTestTubes();
-      
-      updateLoadStatus("Setting up AR system...", 60);
-      
-      // Initialize AR
-      initAR();
-      
-      updateLoadStatus("Starting animation...", 80);
-      
-      // Start animation loop
-      animate();
-      
-      // Show HUD and hide loading
-      setTimeout(() => {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('hud').style.display = 'block';
-        updateLoadStatus("Ready! Show markers", 100);
-      }, 500);
-      
-      console.log("✅ Three.js AR Experiment Initialized");
-    }
-    
-    // ========== CREATE 3D TEST TUBES ==========
-    function createTestTubes() {
-      // BLUE TEST TUBE
-      const blueTubeGroup = new THREE.Group();
-      blueTubeGroup.name = "blueTube";
-      
-      // Glass cylinder
-      const glassGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.6, 32);
-      const glassMaterial = new THREE.MeshPhongMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.2
-      });
-      const blueGlass = new THREE.Mesh(glassGeometry, glassMaterial);
-      blueGlass.position.y = 0.3;
-      blueTubeGroup.add(blueGlass);
-      
-      // Blue liquid cylinder
-      const liquidGeometry = new THREE.CylinderGeometry(0.13, 0.13, 0.5, 32);
-      const blueMaterial = new THREE.MeshPhongMaterial({
-        color: 0x0088ff,
-        transparent: true,
-        opacity: 0.9
-      });
-      blueLiquid = new THREE.Mesh(liquidGeometry, blueMaterial);
-      blueLiquid.position.y = 0.25; // Half of 0.5
-      blueLiquid.scale.y = blueLevel;
-      blueTubeGroup.add(blueLiquid);
-      
-      // Liquid surface (disc)
-      const surfaceGeometry = new THREE.CircleGeometry(0.13, 32);
-      const blueSurface = new THREE.Mesh(surfaceGeometry, blueMaterial);
-      blueSurface.rotation.x = -Math.PI / 2; // Make it horizontal
-      blueSurface.position.y = 0.5; // Top of liquid
-      blueTubeGroup.add(blueSurface);
-      
-      blueTube = blueTubeGroup;
-      blueTube.visible = false;
-      scene.add(blueTube);
-      
-      // YELLOW TEST TUBE
-      const yellowTubeGroup = new THREE.Group();
-      yellowTubeGroup.name = "yellowTube";
-      
-      // Glass
-      const yellowGlass = new THREE.Mesh(glassGeometry, glassMaterial);
-      yellowGlass.position.y = 0.3;
-      yellowTubeGroup.add(yellowGlass);
-      
-      // Yellow liquid
-      const yellowMaterial = new THREE.MeshPhongMaterial({
-        color: 0xffff00,
-        transparent: true,
-        opacity: 0.9
-      });
-      yellowLiquid = new THREE.Mesh(liquidGeometry, yellowMaterial);
-      yellowLiquid.position.y = 0.1; // Lower starting point
-      yellowLiquid.scale.y = yellowLevel;
-      yellowTubeGroup.add(yellowLiquid);
-      
-      // Yellow surface
-      const yellowSurface = new THREE.Mesh(surfaceGeometry, yellowMaterial);
-      yellowSurface.rotation.x = -Math.PI / 2;
-      yellowSurface.position.y = 0.2; // Top of starting liquid
-      yellowTubeGroup.add(yellowSurface);
-      
-      yellowTube = yellowTubeGroup;
-      yellowTube.visible = false;
-      scene.add(yellowTube);
-      
-      console.log("✅ 3D Test Tubes Created");
-    }
-    
-    // ========== INITIALIZE AR ==========
-    function initAR() {
-      updateLoadStatus("Accessing camera...", 70);
-      
-      // Create AR source (webcam)
-      arToolkitSource = new THREEx.ArToolkitSource({
-        sourceType: 'webcam',
-        sourceWidth: 640,
-        sourceHeight: 480,
-        displayWidth: window.innerWidth,
-        displayHeight: window.innerHeight
-      });
-      
-      arToolkitSource.init(() => {
-        console.log("✅ Webcam initialized");
-        arToolkitSource.onResize();
-        updateLoadStatus("Camera ready", 75);
-      });
-      
-      // Create AR context
-      arToolkitContext = new THREEx.ArToolkitContext({
-        cameraParametersUrl: 'https://raw.githack.com/AR-js-org/AR.js/master/data/data/camera_para.dat',
-        detectionMode: 'mono',
-        maxDetectionRate: 30,
-        canvasWidth: window.innerWidth,
-        canvasHeight: window.innerHeight,
-      });
-      
-      arToolkitContext.init(() => {
-        console.log("✅ AR Context initialized");
-        camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
-        updateLoadStatus("Setting up markers...", 85);
-        
-        // Create marker controls after context is ready
-        createMarkerControls();
-      });
-    }
-    
-    // ========== CREATE MARKER CONTROLS ==========
-    function createMarkerControls() {
-      console.log("📌 Creating marker controls with URLs:");
-      console.log("Marker A:", MARKER_A_URL);
-      console.log("Marker B:", MARKER_B_URL);
-      
-      // Create root objects for markers
-      const markerRootA = new THREE.Group();
-      markerRootA.visible = false;
-      scene.add(markerRootA);
-      
-      const markerRootB = new THREE.Group();
-      markerRootB.visible = false;
-      scene.add(markerRootB);
-      
-      // Marker A Controls (Blue Tube)
-      const markerControlsA = new THREEx.ArMarkerControls(arToolkitContext, markerRootA, {
-        type: 'pattern',
-        patternUrl: MARKER_A_URL,
-        changeMatrixMode: 'cameraTransformMatrix'
-      });
-      
-      // Marker B Controls (Yellow Tube)
-      const markerControlsB = new THREEx.ArMarkerControls(arToolkitContext, markerRootB, {
-        type: 'pattern',
-        patternUrl: MARKER_B_URL,
-        changeMatrixMode: 'cameraTransformMatrix'
-      });
-      
-      // Marker A Events
-      markerControlsA.addEventListener('markerFound', () => {
-        console.log("✅ Marker A (Blue Tube) detected!");
-        blueTube.visible = true;
-        blueTube.position.set(0, 0, 0);
-        blueTube.scale.set(1, 1, 1);
-        markerRootA.add(blueTube);
-        
-        // Update HUD
-        document.getElementById('blue-status').textContent = "✅ Found";
-        document.getElementById('blue-status').style.color = "#0088ff";
-        document.getElementById('status').textContent = "Blue tube ready";
-        
-        if (yellowTube.visible) {
-          document.getElementById('status').textContent = "✅ Both tubes ready! Click POUR";
-        }
-      });
-      
-      markerControlsA.addEventListener('markerLost', () => {
-        console.log("Marker A lost");
-        blueTube.visible = false;
-        scene.add(blueTube);
-        document.getElementById('blue-status').textContent = "❌ Not found";
-        document.getElementById('blue-status').style.color = "#ff4444";
-      });
-      
-      // Marker B Events
-      markerControlsB.addEventListener('markerFound', () => {
-        console.log("✅ Marker B (Yellow Tube) detected!");
-        yellowTube.visible = true;
-        yellowTube.position.set(0, 0, 0);
-        yellowTube.scale.set(1, 1, 1);
-        markerRootB.add(yellowTube);
-        
-        // Update HUD
-        document.getElementById('yellow-status').textContent = "✅ Found";
-        document.getElementById('yellow-status').style.color = "#ffff00";
-        document.getElementById('status').textContent = "Yellow tube ready";
-        
-        if (blueTube.visible) {
-          document.getElementById('status').textContent = "✅ Both tubes ready! Click POUR";
-        }
-      });
-      
-      markerControlsB.addEventListener('markerLost', () => {
-        console.log("Marker B lost");
-        yellowTube.visible = false;
-        scene.add(yellowTube);
-        document.getElementById('yellow-status').textContent = "❌ Not found";
-        document.getElementById('yellow-status').style.color = "#ff4444";
-      });
-      
-      console.log("✅ Marker controls created");
-      updateLoadStatus("Ready to scan markers", 100);
-    }
-    
-    // ========== POURING SYSTEM ==========
-    function startPouring() {
-      if (!blueTube.visible || !yellowTube.visible) {
-        alert("Please show both markers first!");
-        return;
-      }
-      
-      if (reactionDone) {
-        alert("Reaction already complete! Click RESET to start over.");
-        return;
-      }
-      
-      console.log("Starting pouring animation...");
-      isPouring = true;
-      document.getElementById('status').textContent = "Pouring...";
-      document.getElementById('status').style.color = "#0088ff";
-      
-      // Start pouring animation
-      const pourInterval = setInterval(() => {
-        if (blueLevel > 0.1 && !reactionDone) {
-          // Transfer liquid
-          blueLevel -= 0.02;
-          yellowLevel += 0.02;
-          
-          // Clamp values
-          blueLevel = Math.max(0.1, blueLevel);
-          yellowLevel = Math.min(1.0, yellowLevel);
-          
-          // Update 3D visuals
-          updateLiquidVisuals();
-          
-          // Create droplet animation
-          createDroplet();
-          
-          // Check if reaction complete
-          if (blueLevel <= 0.11) {
-            completeReaction();
-            clearInterval(pourInterval);
+    let tiltThreshold = 30;
+    let lastDropTime = 0;
+    const dropInterval = 300;
+
+    // MARKER TRACKING
+    AFRAME.registerComponent("marker-tracker", {
+      schema: { id: { type: "string" } },
+
+      init() {
+        this.el.addEventListener("markerFound", () => {
+          if (this.data.id === "A") {
+            tubeAVisible = true;
+            document.getElementById("marker-a-status").textContent = "✅ Found";
           }
-        } else {
-          clearInterval(pourInterval);
-          isPouring = false;
-        }
-      }, 200);
-    }
-    
-    function updateLiquidVisuals() {
-      // Update blue liquid
-      blueLiquid.scale.y = blueLevel;
-      blueLiquid.position.y = 0.25 * blueLevel;
-      
-      // Update yellow liquid
-      yellowLiquid.scale.y = yellowLevel;
-      yellowLiquid.position.y = 0.1 + (0.15 * yellowLevel); // Adjust position as it fills
-      
-      // Color mixing (yellow -> green)
-      const mixRatio = (yellowLevel - 0.2) / 0.8;
-      if (mixRatio > 0.5) {
-        // Mix to green
-        const greenValue = Math.min(255, 150 + (mixRatio * 105));
-        yellowLiquid.material.color.setRGB(
-          1 - mixRatio,
-          greenValue / 255,
-          mixRatio * 0.5
-        );
-      }
-      
-      // Update HUD percentages
-      document.getElementById('blue-status').textContent = `✅ ${Math.round(blueLevel * 100)}%`;
-      document.getElementById('yellow-status').textContent = `✅ ${Math.round(yellowLevel * 100)}%`;
-    }
-    
-    function createDroplet() {
-      // Create a simple droplet animation
-      const geometry = new THREE.SphereGeometry(0.02, 16, 16);
-      const material = new THREE.MeshPhongMaterial({ color: 0x0088ff });
-      const droplet = new THREE.Mesh(geometry, material);
-      
-      // Position at blue tube
-      droplet.position.copy(blueTube.position);
-      droplet.position.y += 0.3;
-      
-      scene.add(droplet);
-      
-      // Animate falling
-      let life = 50;
-      function animateDroplet() {
-        if (life > 0) {
-          droplet.position.y -= 0.02;
-          life--;
-          requestAnimationFrame(animateDroplet);
-        } else {
-          scene.remove(droplet);
-        }
-      }
-      animateDroplet();
-    }
-    
-    function completeReaction() {
-      console.log("🎉 Reaction Complete!");
-      reactionDone = true;
-      isPouring = false;
-      
-      // Visual effects
-      blueLiquid.material.opacity = 0.3; // Make it look empty
-      yellowLiquid.material.color.setHex(0x00ff00); // Bright green
-      
-      // Update HUD
-      document.getElementById('status').textContent = "🎉 REACTION COMPLETE!";
-      document.getElementById('status').style.color = "#00ff00";
-      document.getElementById('reaction-status').textContent = "✅ Blue + Yellow = Green!";
-      document.getElementById('reaction-status').style.color = "#00ff00";
-    }
-    
-    // ========== ANIMATION LOOP ==========
-    function animate() {
-      requestAnimationFrame(animate);
-      
-      // Update AR if ready
-      if (arToolkitSource && arToolkitSource.ready) {
-        arToolkitContext.update(arToolkitSource.domElement);
-      }
-      
-      // Render scene
-      renderer.render(scene, camera);
-    }
-    
-    // ========== RESET FUNCTION ==========
-    function resetExperiment() {
-      console.log("Resetting experiment...");
-      
-      isPouring = false;
-      reactionDone = false;
-      blueLevel = 1.0;
-      yellowLevel = 0.2;
-      
-      // Reset 3D visuals
-      blueLiquid.scale.y = blueLevel;
-      blueLiquid.material.opacity = 0.9;
-      blueLiquid.material.color.setHex(0x0088ff);
-      
-      yellowLiquid.scale.y = yellowLevel;
-      yellowLiquid.material.color.setHex(0xffff00);
-      yellowLiquid.position.y = 0.1;
-      
-      // Reset HUD
-      document.getElementById('status').textContent = "Show markers to camera";
-      document.getElementById('status').style.color = "white";
-      document.getElementById('reaction-status').textContent = "Not started";
-      document.getElementById('reaction-status').style.color = "white";
-      
-      // Only update marker status if tubes are visible
-      if (blueTube.visible) {
-        document.getElementById('blue-status').textContent = "✅ Found";
-        document.getElementById('blue-status').style.color = "#0088ff";
-      }
-      if (yellowTube.visible) {
-        document.getElementById('yellow-status').textContent = "✅ Found";
-        document.getElementById('yellow-status').style.color = "#ffff00";
-      }
-      
-      console.log("✅ Experiment reset");
-    }
-    
-    // ========== EVENT LISTENERS ==========
-    window.addEventListener('resize', () => {
-      if (camera && renderer) {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      }
-      if (arToolkitSource) {
-        arToolkitSource.onResize();
+          if (this.data.id === "B") {
+            tubeBVisible = true;
+            document.getElementById("marker-b-status").textContent = "✅ Found";
+          }
+          updateStatus();
+        });
+
+        this.el.addEventListener("markerLost", () => {
+          if (this.data.id === "A") {
+            tubeAVisible = false;
+            document.getElementById("marker-a-status").textContent = "❌ Not found";
+          }
+          if (this.data.id === "B") {
+            tubeBVisible = false;
+            document.getElementById("marker-b-status").textContent = "❌ Not found";
+          }
+          updateStatus();
+        });
       }
     });
-    
-    // Tilt detection for mobile
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', (event) => {
-        const tilt = Math.abs(event.beta || 0);
-        if (tilt > 40 && blueTube.visible && yellowTube.visible && !isPouring && !reactionDone) {
-          startPouring();
+
+    // DROPLET SYSTEM - Creates visible droplets
+    AFRAME.registerComponent("drop-spawner", {
+      init: function () {
+        console.log("Drop spawner initialized");
+        
+        window.addEventListener("deviceorientation", (event) => {
+          const tilt = event.beta || 0;
+          const currentTime = Date.now();
+          
+          // Update tilt display
+          document.getElementById("tilt-display").textContent = Math.round(tilt) + '°';
+          
+          // Spawn droplets when tilted and tube A is visible
+          if (tilt > tiltThreshold && tubeAVisible && !reactionDone) {
+            if (currentTime - lastDropTime > dropInterval) {
+              lastDropTime = currentTime;
+              this.spawnDrop();
+              
+              // Also update liquid levels
+              updateLiquidLevels();
+            }
+          }
+          
+          // Check for reaction
+          if (tilt > 40 && tubeAVisible && tubeBVisible && !reactionDone) {
+            if (levelA <= MIN + 0.01) {
+              triggerReaction();
+            }
+          }
+        });
+      },
+
+      spawnDrop: function () {
+        dropCount++;
+        document.getElementById("drop-count").textContent = dropCount;
+        
+        // Create a visible droplet
+        const drop = document.createElement("a-sphere");
+        drop.setAttribute("radius", "0.03");
+        drop.setAttribute("color", "#0088ff");
+        drop.setAttribute("opacity", "0.9");
+        
+        // Position at the top of tube A's liquid
+        // Get tube A's position
+        const tubeA = document.querySelector("#tubeA");
+        if (!tubeA) return;
+        
+        drop.setAttribute("position", {
+          x: 0,
+          y: 0.28, // Top of liquid surface
+          z: 0
+        });
+        
+        // Add glow effect for better visibility
+        drop.setAttribute("light", {
+          type: "point",
+          color: "#0088ff",
+          intensity: 0.3,
+          distance: 0.5
+        });
+        
+        // Add to tube A
+        tubeA.appendChild(drop);
+        
+        // Store drop
+        const dropId = 'drop-' + Date.now();
+        drop.setAttribute('id', dropId);
+        activeDrops.push({id: dropId, element: drop});
+        
+        // Animate drop falling
+        this.animateDrop(drop, dropId);
+      },
+
+      animateDrop: function (drop, dropId) {
+        let startY = 0.28;
+        let currentY = startY;
+        const fallSpeed = 0.01;
+        const animationDuration = 1500;
+        const startTime = Date.now();
+        
+        const animate = () => {
+          const elapsed = Date.now() - startTime;
+          
+          if (elapsed < animationDuration && !reactionDone) {
+            // Move drop down
+            const progress = elapsed / animationDuration;
+            currentY = startY - (startY + 0.3) * progress;
+            
+            drop.setAttribute("position", {
+              x: 0,
+              y: currentY,
+              z: 0
+            });
+            
+            // Slight wobble effect
+            const wobble = Math.sin(progress * Math.PI * 4) * 0.02;
+            drop.setAttribute("position", {
+              x: wobble,
+              y: currentY,
+              z: wobble * 0.5
+            });
+            
+            requestAnimationFrame(animate);
+          } else {
+            // Remove drop
+            if (drop.parentNode) {
+              drop.parentNode.removeChild(drop);
+            }
+            // Remove from active drops
+            const index = activeDrops.findIndex(d => d.id === dropId);
+            if (index > -1) activeDrops.splice(index, 1);
+          }
+        };
+        
+        requestAnimationFrame(animate);
+      }
+    });
+
+    // Update liquid levels
+    function updateLiquidLevels() {
+      if (!tubeAVisible || !tubeBVisible || reactionDone) return;
+      
+      const liquidA = document.querySelector("#liquidA");
+      const liquidB = document.querySelector("#liquidB");
+      if (!liquidA || !liquidB) return;
+
+      // Pour from A → B
+      if (levelA > MIN) {
+        levelA -= SPEED * 0.5; // Slower since drops are separate
+        levelB += SPEED * 0.5;
+      }
+
+      // Clamp values
+      levelA = Math.max(MIN, levelA);
+      levelB = Math.min(MAX, levelB);
+
+      // Update Tube A
+      liquidA.setAttribute("height", levelA);
+      liquidA.setAttribute("position", `0 ${levelA / 2} 0`);
+
+      // Update Tube B
+      liquidB.setAttribute("height", levelB);
+      liquidB.setAttribute("position", `0 ${levelB / 2} 0`);
+    }
+
+    // Trigger reaction
+    function triggerReaction() {
+      reactionDone = true;
+      
+      const liquidB = document.querySelector("#liquidB");
+      if (liquidB) {
+        liquidB.setAttribute("color", "#00ff00");
+        document.getElementById("reaction-status").textContent = "🎉 Reaction Complete!";
+        document.getElementById("reaction-status").style.color = "#00ff00";
+      }
+      
+      // Clear all drops
+      clearAllDrops();
+    }
+
+    // Clear all drops
+    function clearAllDrops() {
+      activeDrops.forEach(drop => {
+        if (drop.element.parentNode) {
+          drop.element.parentNode.removeChild(drop.element);
         }
       });
+      activeDrops = [];
     }
-    
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (event) => {
-      switch(event.key) {
-        case ' ':
-          startPouring();
-          break;
-        case 'r':
-        case 'R':
-          resetExperiment();
-          break;
+
+    // Update status
+    function updateStatus() {
+      const status = document.getElementById("experiment-status");
+      if (tubeAVisible && tubeBVisible) {
+        status.textContent = "Ready! Tilt phone forward";
+      } else if (tubeAVisible) {
+        status.textContent = "Tube A ready";
+      } else if (tubeBVisible) {
+        status.textContent = "Tube B ready";
+      } else {
+        status.textContent = "Show marker A or B";
       }
-    });
-    
-    // ========== START APPLICATION ==========
-    window.onload = init;
-    
-    // Expose functions to global scope
-    window.startPouring = startPouring;
-    window.resetExperiment = resetExperiment;
+    }
+
+    // Reset function
+    window.resetExperiment = function() {
+      reactionDone = false;
+      dropCount = 0;
+      levelA = 0.3;
+      levelB = 0.05;
+      
+      // Reset tube A
+      const liquidA = document.querySelector("#liquidA");
+      if (liquidA) {
+        liquidA.setAttribute("height", "0.3");
+        liquidA.setAttribute("position", "0 0.15 0");
+      }
+      
+      // Reset tube B
+      const liquidB = document.querySelector("#liquidB");
+      if (liquidB) {
+        liquidB.setAttribute("height", "0.05");
+        liquidB.setAttribute("position", "0 0.025 0");
+        liquidB.setAttribute("color", "yellow");
+      }
+      
+      // Clear drops
+      clearAllDrops();
+      
+      // Update displays
+      document.getElementById("drop-count").textContent = "0";
+      document.getElementById("reaction-status").textContent = "Not reacted";
+      document.getElementById("reaction-status").style.color = "white";
+      document.getElementById("tilt-display").textContent = "0°";
+      
+      updateStatus();
+    };
 
   </script>
+
+</head>
+
+<body style="margin:0; overflow:hidden;">
+  <!-- HUD Display -->
+  <div id="hud">
+    <h3 style="margin: 0 0 10px 0;">🧪 AR Chemical Experiment</h3>
+    <p><strong>Status:</strong> <span id="experiment-status">Show marker A or B</span></p>
+    <p><strong>Tilt:</strong> <span id="tilt-display">0°</span></p>
+    <p><strong>Markers:</strong> 
+      A: <span id="marker-a-status">❌</span> | 
+      B: <span id="marker-b-status">❌</span>
+    </p>
+    <p><strong>Reaction:</strong> <span id="reaction-status">Not reacted</span></p>
+    <button onclick="resetExperiment()" style="margin-top: 5px; padding: 5px 10px;">
+      Reset Experiment
+    </button>
+  </div>
+  
+  <!-- Drop Counter -->
+  <div class="drop-counter">
+    💧 Drops: <span id="drop-count">0</span>
+  </div>
+
+  <a-scene
+    embedded
+    arjs="debugUIEnabled:false;"
+    device-orientation-permission-ui="enabled: true">
+
+    <!-- Lighting -->
+    <a-light type="ambient" intensity="0.8"></a-light>
+    <a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
+
+    <!-- ========== TEST TUBE A ========= -->
+    <a-marker
+      type="pattern"
+      url="markers/testtube_markerA.patt"
+      marker-tracker="id: A">
+
+      <a-entity id="tubeA" drop-spawner position="0 0 0">
+        <!-- Glass -->
+        <a-cylinder
+          radius="0.15"
+          height="0.6"
+          position="0 0.3 0"
+          color="#ffffff"
+          opacity="0.25"
+          roughness="0.1"
+          metalness="0.5">
+        </a-cylinder>
+
+        <!-- Liquid A -->
+        <a-cylinder
+          id="liquidA"
+          radius="0.13"
+          height="0.3"
+          position="0 0.15 0"
+          color="#0088ff"
+          opacity="0.9"
+          roughness="0.2"
+          metalness="0.1">
+        </a-cylinder>
+
+        <!-- Liquid surface for better visual -->
+        <a-circle
+          radius="0.13"
+          position="0 0.3 0"
+          color="#0088ff"
+          opacity="0.9"
+          rotation="-90 0 0">
+        </a-circle>
+
+      </a-entity>
+
+    </a-marker>
+
+    <!-- ========== TEST TUBE B ========= -->
+    <a-marker
+      type="pattern"
+      url="markers/testtube_markerB.patt"
+      marker-tracker="id: B">
+
+      <a-entity position="0 0 0">
+        <!-- Glass -->
+        <a-cylinder
+          radius="0.15"
+          height="0.6"
+          position="0 0.3 0"
+          color="#ffffff"
+          opacity="0.25"
+          roughness="0.1"
+          metalness="0.5">
+        </a-cylinder>
+
+        <!-- Liquid B -->
+        <a-cylinder
+          id="liquidB"
+          radius="0.13"
+          height="0.05"
+          position="0 0.025 0"
+          color="#ffff00"
+          opacity="0.9"
+          roughness="0.2"
+          metalness="0.1">
+        </a-cylinder>
+
+        <!-- Liquid surface -->
+        <a-circle
+          radius="0.13"
+          position="0 0.05 0"
+          color="#ffff00"
+          opacity="0.9"
+          rotation="-90 0 0">
+        </a-circle>
+
+      </a-entity>
+
+    </a-marker>
+
+    <!-- Camera -->
+    <a-entity camera></a-entity>
+  </a-scene>
   
   <!-- Instructions -->
   <div style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-              background: rgba(0,0,0,0.95); color: white; padding: 15px; 
-              border-radius: 10px; text-align: center; max-width: 95%; z-index: 1000;
-              border: 3px solid #00ff88;">
-    <h4 style="margin: 0 0 10px 0;">🎯 HOW TO USE:</h4>
-    <p style="margin: 5px 0; color: #0088ff;">1. Show <strong>testtube_markerA.patt</strong> to camera</p>
-    <p style="margin: 5px 0; color: #ffff00;">2. Show <strong>testtube_markerB.patt</strong> to camera</p>
-    <p style="margin: 5px 0; color: #00ff88;">3. Click <strong>START POURING</strong> button</p>
-    <p style="margin: 5px 0; color: #ffaa00;">4. Watch blue liquid turn yellow to green!</p>
-    <p style="margin: 10px 0 0 0; font-size: 12px; color: #aaa;">
-      Running from: <strong>https://swarada-42.github.io/TestTube/</strong>
-    </p>
+              background: rgba(0,0,0,0.8); color: white; padding: 15px; 
+              border-radius: 10px; text-align: center; max-width: 90%; z-index: 1000;">
+    <h4 style="margin: 0 0 10px 0;">📌 INSTRUCTIONS:</h4>
+    <p style="margin: 5px 0;">1. Show both markers (A and B)</p>
+    <p style="margin: 5px 0;">2. <strong>Tilt phone FORWARD</strong> to pour</p>
+    <p style="margin: 5px 0;">3. Watch blue droplets fall into yellow tube</p>
+    <p style="margin: 5px 0;">4. When all blue is poured, reaction happens!</p>
   </div>
 </body>
 </html>
