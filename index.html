@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Visible Droplets with Tilt</title>
+  <title>AR Chemical Mixing – Visible Droplets</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -60,9 +60,8 @@
     
     // Tilt tracking
     let currentPhoneTilt = 0;
-    let currentTubeTilt = 0;
     let isPouring = false;
-    let tiltAnimationId = null;
+    let reactionAnimationActive = false;
 
     // MARKER TRACKING
     AFRAME.registerComponent("marker-tracker", {
@@ -95,46 +94,66 @@
       }
     });
 
-    // TUBE TILTING SYSTEM - Makes test tube tilt when pouring
-    AFRAME.registerComponent("tube-tilter", {
+    // REACTION TILTER SYSTEM - Makes blue test tube tilt when reaction happens
+    AFRAME.registerComponent("reaction-tilter", {
       schema: {
         tubeId: { type: "string" },
-        maxTilt: { type: "number", default: 60 }
+        maxTilt: { type: "number", default: 45 }
       },
 
       init: function () {
-        console.log("Tube tilter initialized for tube:", this.data.tubeId);
+        console.log("Reaction tilter initialized for tube:", this.data.tubeId);
         
-        // Initial rotation
+        // Initial rotation - always straight
         this.el.setAttribute('rotation', '0 0 0');
         
         // Add reference for animation
         this.currentRotation = 0;
         this.targetRotation = 0;
         this.isAnimating = false;
+        this.tiltDirection = 1;
+        this.wobbleTime = 0;
       },
 
       tick: function () {
-        // Smoothly animate to target rotation
-        if (Math.abs(this.currentRotation - this.targetRotation) > 0.5) {
-          this.currentRotation += (this.targetRotation - this.currentRotation) * 0.1;
-          this.el.setAttribute('rotation', `${this.currentRotation} 0 0`);
-          this.isAnimating = true;
+        // Only animate if reaction animation is active
+        if (reactionAnimationActive) {
+          this.wobbleTime += 0.1;
+          
+          // Create a wobbling effect for reaction
+          const wobbleAngle = Math.sin(this.wobbleTime) * 15; // Wobble ±15 degrees
+          
+          this.el.setAttribute('rotation', {
+            x: wobbleAngle,
+            y: 0,
+            z: 0
+          });
         } else if (this.isAnimating) {
-          this.el.setAttribute('rotation', `${this.targetRotation} 0 0`);
-          this.currentRotation = this.targetRotation;
-          this.isAnimating = false;
+          // Smoothly return to original position
+          if (Math.abs(this.currentRotation) > 0.5) {
+            this.currentRotation *= 0.9;
+            this.el.setAttribute('rotation', {
+              x: this.currentRotation,
+              y: 0,
+              z: 0
+            });
+          } else {
+            this.el.setAttribute('rotation', '0 0 0');
+            this.currentRotation = 0;
+            this.isAnimating = false;
+          }
         }
       },
 
-      tiltTube: function (tiltAngle) {
-        // Map phone tilt to tube tilt (0° to maxTilt)
-        const mappedTilt = Math.min(this.data.maxTilt, Math.max(0, tiltAngle - tiltThreshold));
-        this.targetRotation = mappedTilt;
+      startReactionTilt: function () {
+        reactionAnimationActive = true;
+        this.isAnimating = true;
+        this.wobbleTime = 0;
       },
 
-      resetTilt: function () {
-        this.targetRotation = 0;
+      stopReactionTilt: function () {
+        reactionAnimationActive = false;
+        this.isAnimating = true;
       }
     });
 
@@ -151,17 +170,10 @@
           // Update tilt display
           document.getElementById("tilt-display").textContent = Math.round(tilt) + '°';
           
-          // Get tube A tilter component
-          const tubeATilter = document.querySelector("#tubeA").components["tube-tilter"];
-          
           // Spawn droplets when tilted and tube A is visible
+          // NO TILTING during pouring - tubes remain straight
           if (tilt > tiltThreshold && tubeAVisible && !reactionDone) {
             isPouring = true;
-            
-            // Tilt the tube based on phone tilt
-            if (tubeATilter) {
-              tubeATilter.tiltTube(tilt);
-            }
             
             if (currentTime - lastDropTime > dropInterval) {
               lastDropTime = currentTime;
@@ -172,10 +184,6 @@
             }
           } else {
             isPouring = false;
-            // Gradually return tube to upright position
-            if (tubeATilter) {
-              tubeATilter.resetTilt();
-            }
           }
           
           // Check for reaction
@@ -198,25 +206,19 @@
         drop.setAttribute("opacity", "0.9");
         
         // Position at the top of tube A's liquid
-        // Get tube A's position and rotation
         const tubeA = document.querySelector("#tubeA");
         if (!tubeA) return;
         
-        // Get current tube rotation
-        const tubeRotation = tubeA.getAttribute('rotation') || {x: 0, y: 0, z: 0};
-        const tiltRad = THREE.MathUtils.degToRad(tubeRotation.x);
-        
-        // Calculate drop position based on tube tilt
-        const tiltOffset = 0.1 * Math.sin(tiltRad);
+        // Always spawn from center (tube is straight during pouring)
         drop.setAttribute("position", {
-          x: tiltOffset,
+          x: 0,
           y: 0.28,
           z: 0
         });
         
-        // Add initial velocity based on tilt
-        drop.initialVelocity = {
-          x: Math.sin(tiltRad) * 0.02,
+        // Simple downward velocity
+        drop.velocity = {
+          x: 0,
           y: -0.01,
           z: 0
         };
@@ -229,57 +231,48 @@
           distance: 0.5
         });
         
-        // Add physics-like properties
-        drop.velocity = { ...drop.initialVelocity };
-        drop.gravity = 0.0005;
-        
         // Add to tube A
         tubeA.appendChild(drop);
         
         // Store drop
         const dropId = 'drop-' + Date.now();
         drop.setAttribute('id', dropId);
-        activeDrops.push({id: dropId, element: drop, velocity: drop.velocity});
+        activeDrops.push({id: dropId, element: drop});
         
-        // Animate drop falling with physics
+        // Animate drop falling
         this.animateDrop(drop, dropId);
       },
 
       animateDrop: function (drop, dropId) {
         let startY = 0.28;
         let currentY = startY;
-        let currentX = 0;
-        let currentZ = 0;
         const animationDuration = 1500;
         const startTime = Date.now();
         
-        // Get initial velocity from drop object
-        const velocity = drop.velocity || { x: 0, y: -0.01, z: 0 };
+        const velocity = { x: 0, y: -0.01, z: 0 };
         const gravity = 0.0005;
         
         const animate = () => {
           const elapsed = Date.now() - startTime;
           
           if (elapsed < animationDuration && !reactionDone) {
-            // Apply physics
+            // Apply simple physics
             velocity.y -= gravity;
-            currentX += velocity.x;
             currentY += velocity.y;
-            currentZ += velocity.z;
             
             // Update drop position
             drop.setAttribute("position", {
-              x: currentX,
+              x: 0,
               y: currentY,
-              z: currentZ
+              z: 0
             });
             
             // Slight wobble effect
             const wobble = Math.sin(elapsed * 0.01) * 0.005;
             drop.setAttribute("position", {
-              x: currentX + wobble,
+              x: wobble,
               y: currentY,
-              z: currentZ + wobble * 0.5
+              z: wobble * 0.5
             });
             
             // If drop falls below certain point, remove it
@@ -308,49 +301,6 @@
       }
     });
 
-    // LIQUID SURFACE TILTING - Makes liquid surface tilt with tube
-    AFRAME.registerComponent("liquid-tilter", {
-      schema: {
-        liquidId: { type: "string" },
-        surfaceId: { type: "string" }
-      },
-
-      init: function () {
-        this.liquidElement = document.querySelector(`#${this.data.liquidId}`);
-        this.surfaceElement = document.querySelector(`#${this.data.surfaceId}`);
-      },
-
-      tick: function () {
-        if (!this.liquidElement || !this.surfaceElement) return;
-        
-        // Get parent tube rotation
-        const tube = this.el.parentNode || this.el;
-        const tubeRotation = tube.getAttribute('rotation') || {x: 0, y: 0, z: 0};
-        
-        // Only tilt liquid surface when tube is tilted
-        if (Math.abs(tubeRotation.x) > 5) {
-          // Calculate liquid surface tilt (opposite direction to appear natural)
-          const surfaceTilt = -tubeRotation.x * 0.7;
-          
-          // Update liquid surface rotation
-          this.surfaceElement.setAttribute('rotation', `${-90 + surfaceTilt} 0 0`);
-          
-          // Adjust liquid surface position based on tilt
-          const tiltRad = THREE.MathUtils.degToRad(tubeRotation.x);
-          const offsetY = 0.02 * Math.sin(tiltRad);
-          const currentPos = this.surfaceElement.getAttribute('position');
-          this.surfaceElement.setAttribute('position', {
-            x: currentPos.x,
-            y: currentPos.y + offsetY,
-            z: currentPos.z
-          });
-        } else {
-          // Return to flat surface
-          this.surfaceElement.setAttribute('rotation', '-90 0 0');
-        }
-      }
-    });
-
     // Update liquid levels
     function updateLiquidLevels() {
       if (!tubeAVisible || !tubeBVisible || reactionDone) return;
@@ -361,7 +311,7 @@
 
       // Pour from A → B
       if (levelA > MIN) {
-        levelA -= SPEED * 0.5; // Slower since drops are separate
+        levelA -= SPEED * 0.5;
         levelB += SPEED * 0.5;
       }
 
@@ -403,35 +353,18 @@
       // Clear all drops
       clearAllDrops();
       
-      // Make tube B wobble slightly to simulate reaction
-      animateReactionWobble();
-    }
-
-    // Animate tube wobble during reaction
-    function animateReactionWobble() {
-      const tubeB = document.querySelector("#tubeB");
-      if (!tubeB) return;
-      
-      const originalRotation = tubeB.getAttribute('rotation') || {x: 0, y: 0, z: 0};
-      let wobbleTime = 0;
-      
-      function wobble() {
-        if (wobbleTime < 2000) { // Wobble for 2 seconds
-          wobbleTime += 16;
-          const wobbleAngle = Math.sin(wobbleTime * 0.01) * 5;
-          tubeB.setAttribute('rotation', {
-            x: originalRotation.x + wobbleAngle,
-            y: originalRotation.y,
-            z: originalRotation.z
-          });
-          requestAnimationFrame(wobble);
-        } else {
-          // Return to original rotation
-          tubeB.setAttribute('rotation', originalRotation);
-        }
+      // Start reaction tilt animation on BLUE tube (Tube A)
+      const tubeA = document.querySelector("#tubeA");
+      if (tubeA && tubeA.components["reaction-tilter"]) {
+        tubeA.components["reaction-tilter"].startReactionTilt();
       }
       
-      wobble();
+      // Stop reaction animation after 3 seconds
+      setTimeout(() => {
+        if (tubeA && tubeA.components["reaction-tilter"]) {
+          tubeA.components["reaction-tilter"].stopReactionTilt();
+        }
+      }, 3000);
     }
 
     // Clear all drops
@@ -465,8 +398,9 @@
       levelA = 0.3;
       levelB = 0.05;
       isPouring = false;
+      reactionAnimationActive = false;
       
-      // Reset tube A rotation
+      // Reset tube A rotation (make it straight)
       const tubeA = document.querySelector("#tubeA");
       if (tubeA) {
         tubeA.setAttribute('rotation', '0 0 0');
@@ -554,13 +488,13 @@
     <a-light type="ambient" intensity="0.8"></a-light>
     <a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
 
-    <!-- ========== TEST TUBE A ========= -->
+    <!-- ========== TEST TUBE A (Blue Liquid) ========= -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
       marker-tracker="id: A">
 
-      <a-entity id="tubeA" drop-spawner tube-tilter="tubeId: A" position="0 0 0">
+      <a-entity id="tubeA" drop-spawner reaction-tilter="tubeId: A" position="0 0 0">
         <!-- Glass -->
         <a-cylinder
           radius="0.15"
@@ -598,7 +532,7 @@
 
     </a-marker>
 
-    <!-- ========== TEST TUBE B ========= -->
+    <!-- ========== TEST TUBE B (Yellow Liquid) ========= -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
