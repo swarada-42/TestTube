@@ -63,6 +63,7 @@
     let isPouring = false;
     let reactionAnimationActive = false;
     let reactionParticles = [];
+    let reactionSparkles = [];
 
     // MARKER TRACKING
     AFRAME.registerComponent("marker-tracker", {
@@ -111,6 +112,10 @@
         this.currentRotation = 0;
         this.wobbleTime = 0;
         this.reactionIntensity = 0;
+        this.particleColors = [
+          '#00ff88', '#88ff00', '#00ffff', '#ff00ff', 
+          '#ffff00', '#ff8800', '#ff0088', '#0088ff'
+        ];
       },
 
       tick: function () {
@@ -120,13 +125,13 @@
           this.reactionIntensity = Math.min(1, this.reactionIntensity + 0.02);
           
           // DRAMATIC WOBBLING EFFECT
-          const wobbleAngle = Math.sin(this.wobbleTime * 2) * 25; // Increased to ±25 degrees
-          const shakeAngle = Math.sin(this.wobbleTime * 5) * 8; // Additional high-frequency shake
+          const wobbleAngle = Math.sin(this.wobbleTime * 2) * 25;
+          const shakeAngle = Math.sin(this.wobbleTime * 5) * 8;
           
           this.el.setAttribute('rotation', {
             x: wobbleAngle + shakeAngle,
-            y: Math.sin(this.wobbleTime * 1.5) * 10, // Add some Y rotation too
-            z: Math.cos(this.wobbleTime * 1.2) * 5 // And Z rotation
+            y: Math.sin(this.wobbleTime * 1.5) * 10,
+            z: Math.cos(this.wobbleTime * 1.2) * 5
           });
           
           // PULSATING SCALE EFFECT
@@ -189,88 +194,341 @@
         this.reactionIntensity = 0.1;
         
         // Create initial BURST effect
-        this.createReactionBurst();
+        this.createMagicBurst();
         
-        // Start particle system
-        this.startParticleSystem();
+        // Start magical particle systems
+        this.startBubbleRingSystem();
+        this.startSparkleSystem();
+        this.startEnergyOrbs();
         
         // Add dramatic light effect
         this.addReactionLight();
-        
-        // Play sound if available (optional)
-        if (typeof Audio !== 'undefined') {
-          try {
-            // Create a simple bubble sound effect using Web Audio API
-            this.playBubbleSound();
-          } catch(e) {
-            console.log("Sound not available");
-          }
-        }
       },
 
       stopReaction: function () {
         reactionAnimationActive = false;
-        this.stopParticleSystem();
+        this.stopParticleSystems();
         this.removeReactionLight();
       },
 
-      createReactionBurst: function () {
-        // Create explosion of particles from the tube
-        for (let i = 0; i < 20; i++) {
+      // MAGIC BURST - Different and attractive
+      createMagicBurst: function () {
+        // Create a magical ring explosion
+        this.createMagicRing();
+        
+        // Create spiral burst
+        setTimeout(() => this.createSpiralBurst(), 200);
+        
+        // Create upward fountain
+        setTimeout(() => this.createFountainEffect(), 400);
+      },
+
+      createMagicRing: function () {
+        // Create a magical expanding ring
+        const ring = document.createElement("a-ring");
+        ring.setAttribute("radius-inner", "0.1");
+        ring.setAttribute("radius-outer", "0.15");
+        ring.setAttribute("color", "#00ffff");
+        ring.setAttribute("opacity", "0.8");
+        ring.setAttribute("position", "0 0.3 0");
+        ring.setAttribute("rotation", "-90 0 0");
+        ring.setAttribute("transparent", "true");
+        
+        // Add glow
+        ring.setAttribute("light", {
+          type: "point",
+          color: "#00ffff",
+          intensity: 1,
+          distance: 0.5
+        });
+        
+        this.el.appendChild(ring);
+        
+        // Animate ring expansion and fade
+        let scale = 1;
+        let opacity = 0.8;
+        const animateRing = () => {
+          scale += 0.1;
+          opacity -= 0.05;
+          
+          ring.setAttribute("scale", `${scale} ${scale} ${scale}`);
+          ring.setAttribute("opacity", opacity);
+          
+          if (opacity > 0) {
+            requestAnimationFrame(animateRing);
+          } else {
+            if (ring.parentNode) {
+              ring.parentNode.removeChild(ring);
+            }
+          }
+        };
+        
+        animateRing();
+      },
+
+      createSpiralBurst: function () {
+        // Create spiral of particles
+        const particleCount = 50;
+        for (let i = 0; i < particleCount; i++) {
           setTimeout(() => {
-            this.createBubbleParticle();
-          }, i * 50);
+            this.createSpiralParticle(i, particleCount);
+          }, i * 10);
         }
       },
 
-      createBubbleParticle: function () {
-        const bubble = document.createElement("a-sphere");
-        bubble.setAttribute("radius", "0.02");
-        bubble.setAttribute("color", "#00ff88");
-        bubble.setAttribute("opacity", "0.8");
-        bubble.setAttribute("transparent", "true");
+      createSpiralParticle: function (index, total) {
+        const angle = (index / total) * Math.PI * 4;
+        const distance = 0.1 + (index / total) * 0.3;
         
-        // Random position around tube
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 0.2 + Math.random() * 0.1;
-        bubble.setAttribute("position", {
+        const particle = document.createElement("a-sphere");
+        const colorIndex = Math.floor(Math.random() * this.particleColors.length);
+        particle.setAttribute("radius", "0.015");
+        particle.setAttribute("color", this.particleColors[colorIndex]);
+        particle.setAttribute("opacity", "0.9");
+        particle.setAttribute("transparent", "true");
+        
+        particle.setAttribute("position", {
           x: Math.cos(angle) * distance,
-          y: 0.3 + Math.random() * 0.2,
+          y: 0.3,
           z: Math.sin(angle) * distance
         });
         
         // Add glow
-        bubble.setAttribute("light", {
+        particle.setAttribute("light", {
           type: "point",
-          color: "#00ff88",
-          intensity: 0.5,
+          color: this.particleColors[colorIndex],
+          intensity: 0.8,
           distance: 0.3
         });
         
-        this.el.appendChild(bubble);
+        this.el.appendChild(particle);
+        
         reactionParticles.push({
-          element: bubble,
+          element: particle,
           velocity: {
-            x: (Math.random() - 0.5) * 0.02,
-            y: 0.01 + Math.random() * 0.02,
-            z: (Math.random() - 0.5) * 0.02
+            x: Math.cos(angle) * 0.02,
+            y: 0.02 + Math.random() * 0.03,
+            z: Math.sin(angle) * 0.02
           },
-          life: 100
+          life: 80 + Math.random() * 40,
+          spinSpeed: (Math.random() - 0.5) * 0.05,
+          rotation: 0,
+          scale: 1
         });
       },
 
-      startParticleSystem: function () {
-        this.particleInterval = setInterval(() => {
-          if (reactionAnimationActive) {
-            this.createBubbleParticle();
-          }
-        }, 200);
+      createFountainEffect: function () {
+        // Create upward fountain of particles
+        for (let i = 0; i < 15; i++) {
+          setTimeout(() => {
+            this.createFountainParticle();
+          }, i * 50);
+        }
       },
 
-      stopParticleSystem: function () {
-        if (this.particleInterval) {
-          clearInterval(this.particleInterval);
-        }
+      createFountainParticle: function () {
+        const particle = document.createElement("a-tetrahedron");
+        const colorIndex = Math.floor(Math.random() * this.particleColors.length);
+        particle.setAttribute("radius", "0.02");
+        particle.setAttribute("color", this.particleColors[colorIndex]);
+        particle.setAttribute("opacity", "0.9");
+        particle.setAttribute("transparent", "true");
+        
+        particle.setAttribute("position", {
+          x: (Math.random() - 0.5) * 0.1,
+          y: 0.25,
+          z: (Math.random() - 0.5) * 0.1
+        });
+        
+        // Add rotation animation
+        particle.setAttribute("rotation", {
+          x: Math.random() * 360,
+          y: Math.random() * 360,
+          z: Math.random() * 360
+        });
+        
+        // Add glow
+        particle.setAttribute("light", {
+          type: "point",
+          color: this.particleColors[colorIndex],
+          intensity: 0.7,
+          distance: 0.3
+        });
+        
+        this.el.appendChild(particle);
+        
+        reactionParticles.push({
+          element: particle,
+          velocity: {
+            x: (Math.random() - 0.5) * 0.01,
+            y: 0.03 + Math.random() * 0.02,
+            z: (Math.random() - 0.5) * 0.01
+          },
+          life: 100 + Math.random() * 50,
+          spinSpeed: 0.02 + Math.random() * 0.03,
+          rotation: 0,
+          scale: 1,
+          rotationSpeed: {
+            x: (Math.random() - 0.5) * 0.02,
+            y: (Math.random() - 0.5) * 0.02,
+            z: (Math.random() - 0.5) * 0.02
+          }
+        });
+      },
+
+      // BUBBLE RING SYSTEM - Creates floating bubble rings
+      startBubbleRingSystem: function () {
+        this.bubbleRingInterval = setInterval(() => {
+          if (reactionAnimationActive) {
+            this.createBubbleRing();
+          }
+        }, 600);
+      },
+
+      createBubbleRing: function () {
+        const ring = document.createElement("a-torus");
+        ring.setAttribute("radius", "0.05");
+        ring.setAttribute("radius-tubular", "0.005");
+        ring.setAttribute("color", "#00ffff");
+        ring.setAttribute("opacity", "0.7");
+        ring.setAttribute("transparent", "true");
+        
+        ring.setAttribute("position", {
+          x: 0,
+          y: 0.3,
+          z: 0
+        });
+        
+        this.el.appendChild(ring);
+        
+        reactionParticles.push({
+          element: ring,
+          velocity: {
+            x: (Math.random() - 0.5) * 0.005,
+            y: 0.015,
+            z: (Math.random() - 0.5) * 0.005
+          },
+          life: 120,
+          spinSpeed: 0.01,
+          rotation: 0,
+          scale: 1,
+          rotationSpeed: {
+            x: 0.01,
+            y: 0.02,
+            z: 0
+          },
+          scaleSpeed: 0.01
+        });
+      },
+
+      // SPARKLE SYSTEM - Creates tiny sparkles
+      startSparkleSystem: function () {
+        this.sparkleInterval = setInterval(() => {
+          if (reactionAnimationActive) {
+            for (let i = 0; i < 3; i++) {
+              this.createSparkle();
+            }
+          }
+        }, 100);
+      },
+
+      createSparkle: function () {
+        const sparkle = document.createElement("a-cone");
+        sparkle.setAttribute("radius-bottom", "0.01");
+        sparkle.setAttribute("radius-top", "0.001");
+        sparkle.setAttribute("height", "0.02");
+        sparkle.setAttribute("color", "#ffff00");
+        sparkle.setAttribute("opacity", "0.9");
+        sparkle.setAttribute("transparent", "true");
+        
+        sparkle.setAttribute("position", {
+          x: (Math.random() - 0.5) * 0.3,
+          y: 0.2 + Math.random() * 0.4,
+          z: (Math.random() - 0.5) * 0.3
+        });
+        
+        sparkle.setAttribute("rotation", {
+          x: Math.random() * 360,
+          y: Math.random() * 360,
+          z: Math.random() * 360
+        });
+        
+        // Twinkling light effect
+        sparkle.setAttribute("light", {
+          type: "point",
+          color: "#ffff00",
+          intensity: 0.5 + Math.random() * 0.5,
+          distance: 0.2
+        });
+        
+        this.el.appendChild(sparkle);
+        
+        reactionSparkles.push({
+          element: sparkle,
+          life: 40 + Math.random() * 30,
+          twinkleSpeed: 0.05 + Math.random() * 0.05,
+          twinklePhase: Math.random() * Math.PI * 2,
+          scale: 1
+        });
+      },
+
+      // ENERGY ORBS - Creates glowing orbs
+      startEnergyOrbs: function () {
+        this.orbInterval = setInterval(() => {
+          if (reactionAnimationActive) {
+            this.createEnergyOrb();
+          }
+        }, 800);
+      },
+
+      createEnergyOrb: function () {
+        const orb = document.createElement("a-sphere");
+        orb.setAttribute("radius", "0.04");
+        orb.setAttribute("color", "#ff00ff");
+        orb.setAttribute("opacity", "0.8");
+        orb.setAttribute("transparent", "true");
+        orb.setAttribute("segments-width", "16");
+        orb.setAttribute("segments-height", "16");
+        
+        orb.setAttribute("position", {
+          x: (Math.random() - 0.5) * 0.4,
+          y: 0.2,
+          z: (Math.random() - 0.5) * 0.4
+        });
+        
+        // Strong glow
+        orb.setAttribute("light", {
+          type: "point",
+          color: "#ff00ff",
+          intensity: 1.2,
+          distance: 0.8
+        });
+        
+        // Pulsating material
+        orb.setAttribute("material", "shader: flat; transparent: true;");
+        
+        this.el.appendChild(orb);
+        
+        reactionParticles.push({
+          element: orb,
+          velocity: {
+            x: (Math.random() - 0.5) * 0.008,
+            y: 0.01 + Math.random() * 0.01,
+            z: (Math.random() - 0.5) * 0.008
+          },
+          life: 150 + Math.random() * 100,
+          spinSpeed: 0.005,
+          rotation: 0,
+          scale: 1,
+          pulseSpeed: 0.05 + Math.random() * 0.03,
+          pulsePhase: Math.random() * Math.PI * 2
+        });
+      },
+
+      stopParticleSystems: function () {
+        if (this.bubbleRingInterval) clearInterval(this.bubbleRingInterval);
+        if (this.sparkleInterval) clearInterval(this.sparkleInterval);
+        if (this.orbInterval) clearInterval(this.orbInterval);
         
         // Remove all particles
         reactionParticles.forEach(particle => {
@@ -279,92 +537,149 @@
           }
         });
         reactionParticles = [];
+        
+        // Remove all sparkles
+        reactionSparkles.forEach(sparkle => {
+          if (sparkle.element.parentNode) {
+            sparkle.element.parentNode.removeChild(sparkle.element);
+          }
+        });
+        reactionSparkles = [];
       },
 
       addReactionLight: function () {
-        // Add a dramatic point light
-        this.reactionLight = document.createElement("a-light");
-        this.reactionLight.setAttribute("type", "point");
-        this.reactionLight.setAttribute("color", "#00ffaa");
-        this.reactionLight.setAttribute("intensity", "1.5");
-        this.reactionLight.setAttribute("distance", "2");
-        this.reactionLight.setAttribute("position", "0 0.5 0");
-        this.el.appendChild(this.reactionLight);
+        // Add multiple colored lights for magical effect
+        this.reactionLight1 = document.createElement("a-light");
+        this.reactionLight1.setAttribute("type", "point");
+        this.reactionLight1.setAttribute("color", "#00ffff");
+        this.reactionLight1.setAttribute("intensity", "1.2");
+        this.reactionLight1.setAttribute("distance", "2");
+        this.reactionLight1.setAttribute("position", "0 0.5 0");
+        this.el.appendChild(this.reactionLight1);
         
-        // Add ambient light for glow
-        this.ambientGlow = document.createElement("a-light");
-        this.ambientGlow.setAttribute("type", "ambient");
-        this.ambientGlow.setAttribute("color", "#00ff88");
-        this.ambientGlow.setAttribute("intensity", "0.3");
-        this.el.appendChild(this.ambientGlow);
+        this.reactionLight2 = document.createElement("a-light");
+        this.reactionLight2.setAttribute("type", "point");
+        this.reactionLight2.setAttribute("color", "#ff00ff");
+        this.reactionLight2.setAttribute("intensity", "0.8");
+        this.reactionLight2.setAttribute("distance", "1.5");
+        this.reactionLight2.setAttribute("position", "0.3 0.4 0.3");
+        this.el.appendChild(this.reactionLight2);
+        
+        this.reactionLight3 = document.createElement("a-light");
+        this.reactionLight3.setAttribute("type", "point");
+        this.reactionLight3.setAttribute("color", "#ffff00");
+        this.reactionLight3.setAttribute("intensity", "0.6");
+        this.reactionLight3.setAttribute("distance", "1.5");
+        this.reactionLight3.setAttribute("position", "-0.3 0.4 -0.3");
+        this.el.appendChild(this.reactionLight3);
       },
 
       removeReactionLight: function () {
-        if (this.reactionLight && this.reactionLight.parentNode) {
-          this.reactionLight.parentNode.removeChild(this.reactionLight);
+        if (this.reactionLight1 && this.reactionLight1.parentNode) {
+          this.reactionLight1.parentNode.removeChild(this.reactionLight1);
         }
-        if (this.ambientGlow && this.ambientGlow.parentNode) {
-          this.ambientGlow.parentNode.removeChild(this.ambientGlow);
+        if (this.reactionLight2 && this.reactionLight2.parentNode) {
+          this.reactionLight2.parentNode.removeChild(this.reactionLight2);
         }
-      },
-
-      playBubbleSound: function () {
-        // Simple bubble sound using Web Audio API
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 0.5);
-        
-        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-        
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.5);
+        if (this.reactionLight3 && this.reactionLight3.parentNode) {
+          this.reactionLight3.parentNode.removeChild(this.reactionLight3);
+        }
       }
     });
 
     // PARTICLE ANIMATION SYSTEM
     AFRAME.registerComponent("particle-animator", {
       tick: function () {
-        if (reactionAnimationActive) {
-          // Update all reaction particles
-          for (let i = reactionParticles.length - 1; i >= 0; i--) {
-            const particle = reactionParticles[i];
-            particle.life--;
-            
-            if (particle.life <= 0) {
-              if (particle.element.parentNode) {
-                particle.element.parentNode.removeChild(particle.element);
-              }
-              reactionParticles.splice(i, 1);
-              continue;
+        // Update reaction particles
+        for (let i = reactionParticles.length - 1; i >= 0; i--) {
+          const particle = reactionParticles[i];
+          particle.life--;
+          
+          if (particle.life <= 0) {
+            if (particle.element.parentNode) {
+              particle.element.parentNode.removeChild(particle.element);
             }
-            
-            // Update position
-            const pos = particle.element.getAttribute('position');
-            particle.element.setAttribute('position', {
-              x: pos.x + particle.velocity.x,
-              y: pos.y + particle.velocity.y,
-              z: pos.z + particle.velocity.z
+            reactionParticles.splice(i, 1);
+            continue;
+          }
+          
+          // Update position
+          const pos = particle.element.getAttribute('position');
+          particle.element.setAttribute('position', {
+            x: pos.x + particle.velocity.x,
+            y: pos.y + particle.velocity.y,
+            z: pos.z + particle.velocity.z
+          });
+          
+          // Update rotation for spinning particles
+          if (particle.rotationSpeed) {
+            const rot = particle.element.getAttribute('rotation') || {x: 0, y: 0, z: 0};
+            particle.element.setAttribute('rotation', {
+              x: rot.x + particle.rotationSpeed.x,
+              y: rot.y + particle.rotationSpeed.y,
+              z: rot.z + particle.rotationSpeed.z
             });
-            
-            // Pulsing scale
-            const pulse = 0.8 + Math.sin(Date.now() * 0.01 + i) * 0.2;
+          }
+          
+          // Pulsing scale for energy orbs
+          if (particle.pulseSpeed) {
+            particle.pulsePhase += particle.pulseSpeed;
+            const pulse = 0.8 + Math.sin(particle.pulsePhase) * 0.3;
             particle.element.setAttribute('scale', {
               x: pulse,
               y: pulse,
               z: pulse
             });
-            
-            // Fade out
-            const opacity = particle.life / 100;
-            particle.element.setAttribute('opacity', opacity * 0.8);
+          } else if (particle.scaleSpeed) {
+            // Growing effect for rings
+            particle.scale += particle.scaleSpeed;
+            particle.element.setAttribute('scale', {
+              x: particle.scale,
+              y: particle.scale,
+              z: particle.scale
+            });
           }
+          
+          // Fade out
+          const opacity = particle.life / 100;
+          particle.element.setAttribute('opacity', opacity * 0.8);
+        }
+        
+        // Update sparkles (twinkling effect)
+        for (let i = reactionSparkles.length - 1; i >= 0; i--) {
+          const sparkle = reactionSparkles[i];
+          sparkle.life--;
+          
+          if (sparkle.life <= 0) {
+            if (sparkle.element.parentNode) {
+              sparkle.element.parentNode.removeChild(sparkle.element);
+            }
+            reactionSparkles.splice(i, 1);
+            continue;
+          }
+          
+          // Twinkling effect
+          sparkle.twinklePhase += sparkle.twinkleSpeed;
+          const twinkle = 0.5 + Math.sin(sparkle.twinklePhase) * 0.5;
+          
+          // Update light intensity for twinkling
+          const light = sparkle.element.getAttribute('light');
+          if (light) {
+            sparkle.element.setAttribute('light', {
+              type: "point",
+              color: light.color || "#ffff00",
+              intensity: twinkle * 0.8,
+              distance: light.distance || 0.2
+            });
+          }
+          
+          // Pulsing scale
+          sparkle.scale = 0.5 + twinkle * 0.5;
+          sparkle.element.setAttribute('scale', {
+            x: sparkle.scale,
+            y: sparkle.scale,
+            z: sparkle.scale
+          });
         }
       }
     });
@@ -557,10 +872,11 @@
         const surfaceB = document.querySelector("#surfaceB");
         if (surfaceB) surfaceB.setAttribute("color", "#00ff00");
         
-        document.getElementById("reaction-status").textContent = "🎉 REACTION ACTIVE!";
-        document.getElementById("reaction-status").style.color = "#00ff00";
+        document.getElementById("reaction-status").textContent = "✨ MAGICAL REACTION! ✨";
+        document.getElementById("reaction-status").style.color = "#00ffff";
         document.getElementById("reaction-status").style.fontWeight = "bold";
-        document.getElementById("reaction-status").style.animation = "pulse 0.5s infinite";
+        document.getElementById("reaction-status").style.textShadow = "0 0 10px #00ffff, 0 0 20px #00ffff";
+        document.getElementById("reaction-status").style.animation = "pulse 0.5s infinite, rainbow 2s infinite";
       }
       
       // Clear all drops
@@ -572,7 +888,7 @@
         tubeA.components["reaction-system"].startReaction();
       }
       
-      // Add CSS pulse animation
+      // Add CSS animations
       const style = document.createElement('style');
       style.textContent = `
         @keyframes pulse {
@@ -580,17 +896,28 @@
           50% { opacity: 0.7; }
           100% { opacity: 1; }
         }
+        @keyframes rainbow {
+          0% { color: #ff0000; }
+          16% { color: #ffff00; }
+          33% { color: #00ff00; }
+          50% { color: #00ffff; }
+          66% { color: #0000ff; }
+          83% { color: #ff00ff; }
+          100% { color: #ff0000; }
+        }
       `;
       document.head.appendChild(style);
       
-      // Stop reaction animation after 4 seconds (longer for dramatic effect)
+      // Stop reaction animation after 5 seconds (longer for magical effect)
       setTimeout(() => {
         if (tubeA && tubeA.components["reaction-system"]) {
           tubeA.components["reaction-system"].stopReaction();
         }
-        document.getElementById("reaction-status").textContent = "✅ Reaction Complete!";
+        document.getElementById("reaction-status").textContent = "🌈 Reaction Complete!";
         document.getElementById("reaction-status").style.animation = "none";
-      }, 4000);
+        document.getElementById("reaction-status").style.color = "#00ff00";
+        document.getElementById("reaction-status").style.textShadow = "none";
+      }, 5000);
     }
 
     // Clear all drops
@@ -680,7 +1007,7 @@
       // Clear drops and particles
       clearAllDrops();
       
-      // Clear reaction particles
+      // Clear reaction particles and sparkles
       reactionParticles.forEach(particle => {
         if (particle.element.parentNode) {
           particle.element.parentNode.removeChild(particle.element);
@@ -688,12 +1015,20 @@
       });
       reactionParticles = [];
       
+      reactionSparkles.forEach(sparkle => {
+        if (sparkle.element.parentNode) {
+          sparkle.element.parentNode.removeChild(sparkle.element);
+        }
+      });
+      reactionSparkles = [];
+      
       // Update displays
       document.getElementById("drop-count").textContent = "0";
       document.getElementById("reaction-status").textContent = "Not reacted";
       document.getElementById("reaction-status").style.color = "white";
       document.getElementById("reaction-status").style.fontWeight = "normal";
       document.getElementById("reaction-status").style.animation = "none";
+      document.getElementById("reaction-status").style.textShadow = "none";
       document.getElementById("tilt-display").textContent = "0°";
       
       updateStatus();
@@ -836,10 +1171,11 @@
       pouringStatus.style.color = isPouring ? "#00ff00" : "white";
       pouringStatus.style.fontWeight = isPouring ? "bold" : "normal";
       
-      // Add pulse animation when reaction is active
+      // Add magical effects when reaction is active
       const reactionStatus = document.getElementById("reaction-status");
       if (reactionAnimationActive) {
-        reactionStatus.style.textShadow = "0 0 10px #00ff00";
+        reactionStatus.style.textShadow = "0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #ff00ff";
+        reactionStatus.style.animation = "pulse 0.5s infinite, rainbow 2s infinite";
       } else {
         reactionStatus.style.textShadow = "none";
       }
