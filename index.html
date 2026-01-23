@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Enhanced Reaction & Instant Liquid</title>
+  <title>AR Chemical Experiment – Visible Liquid Transfer</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -14,58 +14,115 @@
     body {
       margin: 0;
       overflow: hidden;
-      font-family: Arial, sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     #hud {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(0,0,0,0.8);
-      color: white;
-      padding: 10px;
-      border-radius: 10px;
+      top: 15px;
+      left: 15px;
+      background: rgba(20, 30, 48, 0.9);
+      color: #e0e0e0;
+      padding: 15px;
+      border-radius: 12px;
       z-index: 1000;
-      max-width: 80%;
+      max-width: 320px;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     }
     .drop-counter {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(0,100,255,0.8);
+      top: 15px;
+      right: 15px;
+      background: rgba(0, 100, 200, 0.9);
       color: white;
-      padding: 10px;
-      border-radius: 10px;
+      padding: 12px 18px;
+      border-radius: 12px;
       z-index: 1000;
+      font-weight: 600;
+      backdrop-filter: blur(5px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 16px rgba(0, 100, 200, 0.2);
     }
-    @keyframes rainbow {
-      0% { color: #ff0000; }
-      16% { color: #ffff00; }
-      33% { color: #00ff00; }
-      50% { color: #00ffff; }
-      66% { color: #0000ff; }
-      83% { color: #ff00ff; }
-      100% { color: #ff0000; }
+    h3 {
+      margin: 0 0 12px 0;
+      color: #4dabf7;
+      font-weight: 600;
+      font-size: 18px;
+      border-bottom: 1px solid rgba(77, 171, 247, 0.3);
+      padding-bottom: 8px;
     }
-    @keyframes rainbowGlow {
-      0% { text-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000; }
-      16% { text-shadow: 0 0 10px #ffff00, 0 0 20px #ffff00; }
-      33% { text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00; }
-      50% { text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff; }
-      66% { text-shadow: 0 0 10px #0000ff, 0 0 20px #0000ff; }
-      83% { text-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff; }
-      100% { text-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000; }
+    .status-label {
+      color: #a0aec0;
+      font-size: 13px;
+      margin-right: 5px;
     }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-      20%, 40%, 60%, 80% { transform: translateX(5px); }
+    .status-value {
+      color: #ffffff;
+      font-weight: 500;
+      font-size: 13px;
+    }
+    .status-item {
+      margin: 6px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .found {
+      background: rgba(72, 187, 120, 0.2);
+      color: #48bb78;
+    }
+    .not-found {
+      background: rgba(245, 101, 101, 0.2);
+      color: #f56565;
+    }
+    .pouring {
+      background: rgba(66, 153, 225, 0.2);
+      color: #4299e1;
+    }
+    .reaction {
+      background: rgba(159, 122, 234, 0.2);
+      color: #9f7aea;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      width: 100%;
+      margin-top: 10px;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    .reaction-indicator {
+      animation: gentlePulse 2s infinite;
+    }
+    @keyframes gentlePulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
     }
   </style>
 
   <script>
-    // Liquid levels - START WITH HALF VISIBLE LIQUID
-    let levelA = 0.25; // Half full (was 0.3)
-    let levelB = 0.1;  // Small amount visible (was 0.05)
+    // Liquid levels - Professional starting values
+    let levelA = 0.25; // Half full (50% capacity)
+    let levelB = 0.1;  // Quarter full (20% capacity)
     let dropCount = 0;
     let activeDrops = [];
 
@@ -86,9 +143,7 @@
     let isPouring = false;
     let reactionAnimationActive = false;
     let reactionParticles = [];
-    let reactionSparkles = [];
     let isReactionComplete = false;
-    let reactionIntensity = 0;
 
     // MARKER TRACKING
     AFRAME.registerComponent("marker-tracker", {
@@ -98,14 +153,14 @@
         this.el.addEventListener("markerFound", () => {
           if (this.data.id === "A") {
             tubeAVisible = true;
-            document.getElementById("marker-a-status").textContent = "✅ Found";
-            // INSTANTLY SHOW HALF LIQUID IN TUBE A
+            document.getElementById("marker-a-status").textContent = "Detected";
+            document.getElementById("marker-a-status").className = "status-badge found";
             updateTubeALiquidVisibility();
           }
           if (this.data.id === "B") {
             tubeBVisible = true;
-            document.getElementById("marker-b-status").textContent = "✅ Found";
-            // INSTANTLY SHOW SMALL AMOUNT IN TUBE B
+            document.getElementById("marker-b-status").textContent = "Detected";
+            document.getElementById("marker-b-status").className = "status-badge found";
             updateTubeBLiquidVisibility();
           }
           updateStatus();
@@ -114,34 +169,27 @@
         this.el.addEventListener("markerLost", () => {
           if (this.data.id === "A") {
             tubeAVisible = false;
-            document.getElementById("marker-a-status").textContent = "❌ Not found";
+            document.getElementById("marker-a-status").textContent = "Not Found";
+            document.getElementById("marker-a-status").className = "status-badge not-found";
           }
           if (this.data.id === "B") {
             tubeBVisible = false;
-            document.getElementById("marker-b-status").textContent = "❌ Not found";
+            document.getElementById("marker-b-status").textContent = "Not Found";
+            document.getElementById("marker-b-status").className = "status-badge not-found";
           }
           updateStatus();
         });
       }
     });
 
-    // TUBE LIQUID VISIBILITY - Ensure liquid is instantly visible
+    // TUBE LIQUID VISIBILITY
     function updateTubeALiquidVisibility() {
       const liquidA = document.querySelector("#liquidA");
       const surfaceA = document.querySelector("#surfaceA");
       if (liquidA && surfaceA) {
-        // Half full tube (0.25 height = half of 0.5 max)
         liquidA.setAttribute("height", levelA);
         liquidA.setAttribute("position", `0 ${levelA/2} 0`);
-        liquidA.setAttribute("color", "#0088ff");
-        liquidA.setAttribute("opacity", "0.95"); // Increased opacity
-        liquidA.setAttribute("transparent", "true");
-        
-        // Surface
         surfaceA.setAttribute("position", `0 ${levelA} 0`);
-        surfaceA.setAttribute("color", "#0088ff");
-        surfaceA.setAttribute("opacity", "0.95"); // Increased opacity
-        surfaceA.setAttribute("transparent", "true");
       }
     }
 
@@ -149,286 +197,231 @@
       const liquidB = document.querySelector("#liquidB");
       const surfaceB = document.querySelector("#surfaceB");
       if (liquidB && surfaceB) {
-        // Small amount in tube B
         liquidB.setAttribute("height", levelB);
         liquidB.setAttribute("position", `0 ${levelB/2} 0`);
-        liquidB.setAttribute("color", "#ffff00");
-        liquidB.setAttribute("opacity", "0.95"); // Increased opacity
-        liquidB.setAttribute("transparent", "true");
-        
-        // Surface
         surfaceB.setAttribute("position", `0 ${levelB} 0`);
-        surfaceB.setAttribute("color", "#ffff00");
-        surfaceB.setAttribute("opacity", "0.95"); // Increased opacity
-        surfaceB.setAttribute("transparent", "true");
       }
     }
 
-    // ENHANCED REACTION SYSTEM - More dramatic effects
+    // REFINED REACTION SYSTEM - Professional effects
     AFRAME.registerComponent("reaction-system", {
       schema: {
         tubeId: { type: "string" }
       },
 
       init: function () {
-        console.log("Enhanced reaction system initialized for tube:", this.data.tubeId);
-        
-        // Initial rotation - always straight
         this.el.setAttribute('rotation', '0 0 0');
         
         // Animation properties
-        this.currentRotation = 0;
-        this.wobbleTime = 0;
-        this.reactionIntensity = 0;
-        this.rainbowTime = 0;
-        this.shakeIntensity = 0;
-        this.particleColors = [
-          '#ff0000', '#ff5500', '#ffaa00', '#ffff00',
-          '#aaff00', '#55ff00', '#00ff55', '#00ffaa',
-          '#00ffff', '#00aaff', '#0055ff', '#5500ff',
-          '#aa00ff', '#ff00ff', '#ff00aa', '#ff0055'
+        this.animationTime = 0;
+        this.reactionPhase = 0; // 0=off, 1=active, 2=continuous
+        this.colorCycle = 0;
+        
+        // Professional color palette
+        this.reactionColors = [
+          '#4dabf7', '#339af0', '#228be6', '#1c7ed6',
+          '#15aabf', '#0ca678', '#40c057', '#82c91e',
+          '#fab005', '#fd7e14', '#fa5252', '#e64980'
         ];
-        this.currentColorIndex = 0;
-        this.colorTransitionTime = 0;
-        this.explosionPhase = 0;
       },
 
       tick: function () {
-        // Continuous animation when reaction is complete
-        if (isReactionComplete) {
-          this.rainbowTime += 0.03;
-          this.colorTransitionTime += 0.08;
+        // Continuous gentle animation when reaction is complete
+        if (this.reactionPhase === 2) {
+          this.animationTime += 0.02;
+          this.colorCycle += 0.01;
           
-          // Enhanced floating motion
-          const floatY = Math.sin(this.rainbowTime) * 0.03;
-          const floatX = Math.sin(this.rainbowTime * 1.5) * 0.01;
-          const floatZ = Math.cos(this.rainbowTime * 1.5) * 0.01;
-          
+          // Subtle floating motion
+          const floatOffset = Math.sin(this.animationTime) * 0.015;
           const currentPos = this.el.getAttribute('position');
           this.el.setAttribute('position', {
-            x: currentPos.x + floatX,
-            y: currentPos.y + floatY,
-            z: currentPos.z + floatZ
+            x: currentPos.x,
+            y: currentPos.y + floatOffset,
+            z: currentPos.z
           });
           
-          // Enhanced rotation
+          // Gentle rotation
           this.el.setAttribute('rotation', {
-            x: Math.sin(this.rainbowTime * 0.8) * 5,
-            y: this.rainbowTime * 15,
-            z: Math.cos(this.rainbowTime * 0.8) * 5
+            x: Math.sin(this.animationTime * 0.3) * 2,
+            y: this.animationTime * 8,
+            z: Math.cos(this.animationTime * 0.3) * 2
           });
           
-          // Pulsing scale
-          const pulseScale = 1 + Math.sin(this.rainbowTime * 2) * 0.05;
-          this.el.setAttribute('scale', {
-            x: pulseScale,
-            y: pulseScale,
-            z: pulseScale
-          });
-          
-          // Continuous color cycling
-          if (this.colorTransitionTime >= 1) {
-            this.colorTransitionTime = 0;
-            this.currentColorIndex = (this.currentColorIndex + 1) % this.particleColors.length;
-          }
-          
-          // Update liquid colors
-          this.updateRainbowLiquids();
+          // Update liquid colors with smooth transitions
+          this.updateReactionLiquids();
           
         } 
-        // Active reaction animation - MORE DRAMATIC
-        else if (reactionAnimationActive) {
-          this.wobbleTime += 0.25; // Faster wobble
-          this.reactionIntensity = Math.min(1, this.reactionIntensity + 0.05); // Faster intensity increase
-          this.shakeIntensity = this.reactionIntensity * 2;
+        // Active reaction animation - Refined and professional
+        else if (this.reactionPhase === 1) {
+          this.animationTime += 0.12;
           
-          // EXTREME WOBBLING AND SHAKING
-          const wobbleAngle = Math.sin(this.wobbleTime * 3) * 35; // Increased angle
-          const shakeAngle = Math.sin(this.wobbleTime * 8) * 15; // Faster shake
-          const twistAngle = Math.sin(this.wobbleTime * 2) * 20; // Twist effect
+          // Controlled oscillation
+          const oscillation = Math.sin(this.animationTime * 2) * 8;
+          const gentleShake = Math.sin(this.animationTime * 5) * 3;
           
           this.el.setAttribute('rotation', {
-            x: wobbleAngle + shakeAngle,
-            y: twistAngle + Math.sin(this.wobbleTime * 2) * 15,
-            z: Math.cos(this.wobbleTime * 2) * 15
+            x: oscillation + gentleShake,
+            y: Math.sin(this.animationTime * 1.2) * 5,
+            z: 0
           });
           
-          // VIOLENT PULSING SCALE
-          const pulseScale = 1 + Math.sin(this.wobbleTime * 5) * 0.15;
+          // Subtle pulsing scale
+          const pulseScale = 1 + Math.sin(this.animationTime * 3) * 0.04;
           this.el.setAttribute('scale', {
             x: pulseScale,
             y: pulseScale,
             z: pulseScale
           });
           
-          // Position shaking
-          const shakeX = Math.sin(this.wobbleTime * 10) * 0.02 * this.shakeIntensity;
-          const shakeY = Math.cos(this.wobbleTime * 8) * 0.01 * this.shakeIntensity;
-          const currentPos = this.el.getAttribute('position');
-          this.el.setAttribute('position', {
-            x: currentPos.x + shakeX,
-            y: currentPos.y + shakeY,
-            z: currentPos.z + shakeX * 0.5
-          });
-          
-          // EXTREME RAINBOW COLOR EFFECT
-          const hue = (this.wobbleTime * 100) % 360;
-          const liquid = document.querySelector("#liquidA");
-          if (liquid) {
-            liquid.setAttribute('color', `hsl(${hue}, 100%, 60%)`);
-            liquid.setAttribute('emissive', `hsl(${hue}, 100%, 60%)`);
-            liquid.setAttribute('emissive-intensity', 0.8 + Math.sin(this.wobbleTime * 8) * 0.4);
-            
-            // Also make the glass glow
-            const glass = document.querySelector("#tubeA a-cylinder");
-            if (glass) {
-              glass.setAttribute('color', `hsl(${(hue + 60) % 360}, 70%, 80%)`);
-              glass.setAttribute('emissive', `hsl(${(hue + 60) % 360}, 50%, 30%)`);
-              glass.setAttribute('emissive-intensity', 0.3);
-            }
-          }
-          
-          // Tube B also reacts
-          const liquidB = document.querySelector("#liquidB");
-          if (liquidB) {
-            const hueB = (hue + 180) % 360;
-            liquidB.setAttribute('color', `hsl(${hueB}, 100%, 60%)`);
-            liquidB.setAttribute('emissive', `hsl(${hueB}, 100%, 60%)`);
-            liquidB.setAttribute('emissive-intensity', 0.6 + Math.sin(this.wobbleTime * 6) * 0.3);
-          }
+          // Professional color progression
+          const colorProgress = (this.animationTime * 20) % 360;
+          this.updateReactionColors(colorProgress);
         }
       },
 
-      updateRainbowLiquids: function () {
+      updateReactionLiquids: function () {
         const liquidA = document.querySelector("#liquidA");
         const liquidB = document.querySelector("#liquidB");
         
         if (liquidA && liquidB) {
-          // Smooth color transition for Tube A
-          const nextColorIndex = (this.currentColorIndex + 1) % this.particleColors.length;
-          const currentColor = this.hexToRgb(this.particleColors[this.currentColorIndex]);
-          const nextColor = this.hexToRgb(this.particleColors[nextColorIndex]);
+          const hue = (this.colorCycle * 180) % 360;
+          const saturation = 70;
+          const lightness = 55;
           
-          const r = Math.floor(currentColor.r + (nextColor.r - currentColor.r) * this.colorTransitionTime);
-          const g = Math.floor(currentColor.g + (nextColor.g - currentColor.g) * this.colorTransitionTime);
-          const b = Math.floor(currentColor.b + (nextColor.b - currentColor.b) * this.colorTransitionTime);
+          liquidA.setAttribute('color', `hsl(${hue}, ${saturation}%, ${lightness}%)`);
+          liquidA.setAttribute('emissive', `hsl(${hue}, ${saturation}%, ${lightness}%)`);
+          liquidA.setAttribute('emissive-intensity', 0.2);
           
-          liquidA.setAttribute('color', `rgb(${r}, ${g}, ${b})`);
-          liquidA.setAttribute('emissive', `rgb(${r}, ${g}, ${b})`);
-          liquidA.setAttribute('emissive-intensity', 0.5 + Math.sin(this.rainbowTime * 3) * 0.3);
-          
-          // Tube B complementary color
-          const nextColorIndex2 = (this.currentColorIndex + 8) % this.particleColors.length;
-          const nextColorIndex3 = (nextColorIndex2 + 1) % this.particleColors.length;
-          const currentColor2 = this.hexToRgb(this.particleColors[nextColorIndex2]);
-          const nextColor2 = this.hexToRgb(this.particleColors[nextColorIndex3]);
-          
-          const r2 = Math.floor(currentColor2.r + (nextColor2.r - currentColor2.r) * this.colorTransitionTime);
-          const g2 = Math.floor(currentColor2.g + (nextColor2.g - currentColor2.g) * this.colorTransitionTime);
-          const b2 = Math.floor(currentColor2.b + (nextColor2.b - currentColor2.b) * this.colorTransitionTime);
-          
-          liquidB.setAttribute('color', `rgb(${r2}, ${g2}, ${b2})`);
-          liquidB.setAttribute('emissive', `rgb(${r2}, ${g2}, ${b2})`);
-          liquidB.setAttribute('emissive-intensity', 0.4 + Math.sin(this.rainbowTime * 2.5) * 0.2);
+          // Complementary color for tube B
+          const complementaryHue = (hue + 180) % 360;
+          liquidB.setAttribute('color', `hsl(${complementaryHue}, ${saturation}%, ${lightness}%)`);
+          liquidB.setAttribute('emissive', `hsl(${complementaryHue}, ${saturation}%, ${lightness}%)`);
+          liquidB.setAttribute('emissive-intensity', 0.15);
         }
       },
 
-      hexToRgb: function(hex) {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-          r: parseInt(result[1], 16),
-          g: parseInt(result[2], 16),
-          b: parseInt(result[3], 16)
-        } : { r: 0, g: 0, b: 0 };
+      updateReactionColors: function (progress) {
+        const liquidA = document.querySelector("#liquidA");
+        const liquidB = document.querySelector("#liquidB");
+        
+        if (liquidA && liquidB) {
+          // Transition from blue through green to purple
+          const hueA = (200 + progress * 0.5) % 360;
+          liquidA.setAttribute('color', `hsl(${hueA}, 75%, 50%)`);
+          liquidA.setAttribute('emissive', `hsl(${hueA}, 75%, 50%)`);
+          liquidA.setAttribute('emissive-intensity', 0.3 + Math.sin(this.animationTime * 4) * 0.2);
+          
+          // Tube B follows with phase shift
+          const hueB = (320 + progress * 0.5) % 360;
+          liquidB.setAttribute('color', `hsl(${hueB}, 75%, 50%)`);
+          liquidB.setAttribute('emissive', `hsl(${hueB}, 75%, 50%)`);
+          liquidB.setAttribute('emissive-intensity', 0.2 + Math.sin(this.animationTime * 3) * 0.15);
+        }
       },
 
       startReaction: function () {
-        reactionAnimationActive = true;
+        this.reactionPhase = 1;
+        this.animationTime = 0;
         isReactionComplete = false;
-        this.wobbleTime = 0;
-        this.reactionIntensity = 0;
-        this.rainbowTime = 0;
-        this.shakeIntensity = 0;
+        reactionAnimationActive = true;
         
-        // SHAKE THE ENTIRE HUD for dramatic effect
-        document.getElementById("hud").style.animation = "shake 0.5s";
+        // Create elegant particle emission
+        this.createElegantParticles();
         
-        // Create SUPER DRAMATIC initial effects
-        this.createMegaExplosion();
+        // Add professional lighting
+        this.addReactionLighting();
         
-        // Start intense particle systems
-        this.startIntenseParticleSystem();
-        
-        // Add dramatic light effect
-        this.addSuperReactionLight();
-        
-        // Play explosion sound effect (if audio available)
-        this.playExplosionSound();
+        // Start particle system
+        this.startParticleSystem();
       },
 
       transitionToContinuousMode: function () {
+        this.reactionPhase = 2;
         reactionAnimationActive = false;
         isReactionComplete = true;
-        this.rainbowTime = 0;
-        this.colorTransitionTime = 0;
-        this.currentColorIndex = 0;
+        this.animationTime = 0;
+        this.colorCycle = 0;
         
-        // Stop HUD shake
-        document.getElementById("hud").style.animation = "";
-        
-        // Change to continuous gentle effects
-        this.startContinuousRainbowMode();
+        // Switch to continuous gentle mode
+        this.startContinuousMode();
       },
 
       stopAllEffects: function () {
+        this.reactionPhase = 0;
         reactionAnimationActive = false;
         isReactionComplete = false;
         this.stopParticleSystems();
-        this.removeReactionLight();
-        document.getElementById("hud").style.animation = "";
+        this.removeReactionLighting();
       },
 
-      // MEGA EXPLOSION EFFECT
-      createMegaExplosion: function () {
-        // Multiple expanding rings
-        for (let i = 0; i < 3; i++) {
-          setTimeout(() => this.createExplosionRing(i), i * 100);
+      createElegantParticles: function () {
+        // Create elegant bubble particles
+        for (let i = 0; i < 30; i++) {
+          setTimeout(() => {
+            this.createBubbleParticle(i);
+          }, i * 40);
         }
         
-        // Massive particle burst
-        setTimeout(() => this.createMegaParticleBurst(), 150);
-        
-        // Shockwave effect
-        setTimeout(() => this.createShockwave(), 300);
+        // Create elegant ring effect
+        setTimeout(() => this.createEnergyRing(), 200);
       },
 
-      createExplosionRing: function (ringIndex) {
+      createBubbleParticle: function (index) {
+        const colorIndex = Math.floor(Math.random() * 6); // Use first 6 colors for consistency
+        const particle = document.createElement("a-sphere");
+        particle.setAttribute("radius", "0.012");
+        particle.setAttribute("color", this.reactionColors[colorIndex]);
+        particle.setAttribute("opacity", "0.7");
+        particle.setAttribute("transparent", "true");
+        
+        const angle = (index / 30) * Math.PI * 2;
+        const distance = 0.1 + Math.random() * 0.08;
+        
+        particle.setAttribute("position", {
+          x: Math.cos(angle) * distance,
+          y: 0.2 + Math.random() * 0.1,
+          z: Math.sin(angle) * distance
+        });
+        
+        particle.setAttribute("light", {
+          type: "point",
+          color: this.reactionColors[colorIndex],
+          intensity: 0.3,
+          distance: 0.2
+        });
+        
+        this.el.appendChild(particle);
+        
+        reactionParticles.push({
+          element: particle,
+          velocity: {
+            x: Math.cos(angle) * 0.008,
+            y: 0.012 + Math.random() * 0.006,
+            z: Math.sin(angle) * 0.008
+          },
+          life: 80 + Math.random() * 40,
+          scale: 1
+        });
+      },
+
+      createEnergyRing: function () {
         const ring = document.createElement("a-ring");
-        const ringColors = ['#ff0000', '#ffff00', '#00ffff'];
-        ring.setAttribute("radius-inner", "0.05");
-        ring.setAttribute("radius-outer", "0.1");
-        ring.setAttribute("color", ringColors[ringIndex % 3]);
-        ring.setAttribute("opacity", "1");
-        ring.setAttribute("position", "0 0.3 0");
+        ring.setAttribute("radius-inner", "0.12");
+        ring.setAttribute("radius-outer", "0.15");
+        ring.setAttribute("color", "#4dabf7");
+        ring.setAttribute("opacity", "0.6");
+        ring.setAttribute("position", "0 0.25 0");
         ring.setAttribute("rotation", "-90 0 0");
         ring.setAttribute("transparent", "true");
         
-        ring.setAttribute("light", {
-          type: "point",
-          color: ringColors[ringIndex % 3],
-          intensity: 2,
-          distance: 1
-        });
-        
         this.el.appendChild(ring);
         
-        // Explosive expansion
+        // Animate ring expansion
         let scale = 1;
-        let opacity = 1;
-        const expandSpeed = 0.2 + ringIndex * 0.05;
+        let opacity = 0.6;
         const animateRing = () => {
-          scale += expandSpeed;
-          opacity -= 0.08;
+          scale += 0.05;
+          opacity -= 0.02;
           
           ring.setAttribute("scale", `${scale} ${scale} ${scale}`);
           ring.setAttribute("opacity", opacity);
@@ -445,397 +438,135 @@
         animateRing();
       },
 
-      createMegaParticleBurst: function () {
-        // Create 100 particles at once!
-        for (let i = 0; i < 100; i++) {
-          setTimeout(() => {
-            this.createExplosionParticle(i);
-          }, Math.random() * 50);
-        }
-      },
-
-      createExplosionParticle: function (index) {
-        const colorIndex = Math.floor(Math.random() * this.particleColors.length);
-        const particleType = Math.random();
-        
-        let particle;
-        if (particleType < 0.3) {
-          particle = document.createElement("a-tetrahedron");
-          particle.setAttribute("radius", "0.03");
-        } else if (particleType < 0.6) {
-          particle = document.createElement("a-octahedron");
-          particle.setAttribute("radius", "0.025");
-        } else {
-          particle = document.createElement("a-sphere");
-          particle.setAttribute("radius", "0.02");
-        }
-        
-        particle.setAttribute("color", this.particleColors[colorIndex]);
-        particle.setAttribute("opacity", "1");
-        particle.setAttribute("transparent", "true");
-        
-        // Explosive outward motion
-        const angle = Math.random() * Math.PI * 2;
-        const verticalAngle = (Math.random() - 0.5) * Math.PI;
-        const speed = 0.05 + Math.random() * 0.05;
-        
-        particle.setAttribute("position", {
-          x: Math.cos(angle) * 0.05,
-          y: 0.3,
-          z: Math.sin(angle) * 0.05
-        });
-        
-        particle.setAttribute("rotation", {
-          x: Math.random() * 360,
-          y: Math.random() * 360,
-          z: Math.random() * 360
-        });
-        
-        particle.setAttribute("light", {
-          type: "point",
-          color: this.particleColors[colorIndex],
-          intensity: 1,
-          distance: 0.4
-        });
-        
-        this.el.appendChild(particle);
-        
-        reactionParticles.push({
-          element: particle,
-          velocity: {
-            x: Math.cos(angle) * Math.cos(verticalAngle) * speed,
-            y: Math.sin(verticalAngle) * speed,
-            z: Math.sin(angle) * Math.cos(verticalAngle) * speed
-          },
-          life: 100 + Math.random() * 100,
-          spinSpeed: 0.1 + Math.random() * 0.1,
-          rotation: 0,
-          scale: 1,
-          rotationSpeed: {
-            x: (Math.random() - 0.5) * 0.1,
-            y: (Math.random() - 0.5) * 0.1,
-            z: (Math.random() - 0.5) * 0.1
-          },
-          gravity: 0.0002
-        });
-      },
-
-      createShockwave: function () {
-        const shockwave = document.createElement("a-circle");
-        shockwave.setAttribute("radius", "0.01");
-        shockwave.setAttribute("color", "#ffffff");
-        shockwave.setAttribute("opacity", "0.8");
-        shockwave.setAttribute("position", "0 0.3 0");
-        shockwave.setAttribute("rotation", "-90 0 0");
-        shockwave.setAttribute("transparent", "true");
-        
-        this.el.appendChild(shockwave);
-        
-        // Shockwave expansion
-        let scale = 1;
-        let opacity = 0.8;
-        const animateShockwave = () => {
-          scale += 0.15;
-          opacity -= 0.1;
-          
-          shockwave.setAttribute("radius", scale * 0.2);
-          shockwave.setAttribute("opacity", opacity);
-          
-          if (opacity > 0) {
-            requestAnimationFrame(animateShockwave);
-          } else {
-            if (shockwave.parentNode) {
-              shockwave.parentNode.removeChild(shockwave);
-            }
-          }
-        };
-        
-        animateShockwave();
-      },
-
-      // INTENSE PARTICLE SYSTEM
-      startIntenseParticleSystem: function () {
-        // Initial burst particles
-        this.intenseParticleInterval = setInterval(() => {
-          if (reactionAnimationActive) {
-            for (let i = 0; i < 5; i++) {
-              this.createIntenseParticle();
-            }
-          }
-        }, 50);
-        
-        // Transition to continuous after intense phase
-        setTimeout(() => {
-          if (this.intenseParticleInterval) clearInterval(this.intenseParticleInterval);
-        }, 2000);
-      },
-
-      createIntenseParticle: function () {
-        const colorIndex = Math.floor(Math.random() * this.particleColors.length);
-        const particle = document.createElement("a-sphere");
-        particle.setAttribute("radius", "0.015");
-        particle.setAttribute("color", this.particleColors[colorIndex]);
-        particle.setAttribute("opacity", "0.9");
-        particle.setAttribute("transparent", "true");
-        
-        // Random position around tube
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 0.1 + Math.random() * 0.2;
-        
-        particle.setAttribute("position", {
-          x: Math.cos(angle) * distance,
-          y: 0.2 + Math.random() * 0.3,
-          z: Math.sin(angle) * distance
-        });
-        
-        particle.setAttribute("light", {
-          type: "point",
-          color: this.particleColors[colorIndex],
-          intensity: 0.8,
-          distance: 0.3
-        });
-        
-        this.el.appendChild(particle);
-        
-        reactionParticles.push({
-          element: particle,
-          velocity: {
-            x: (Math.random() - 0.5) * 0.01,
-            y: 0.01 + Math.random() * 0.01,
-            z: (Math.random() - 0.5) * 0.01
-          },
-          life: 80 + Math.random() * 40,
-          spinSpeed: 0.02,
-          rotation: 0,
-          scale: 1,
-          pulseSpeed: 0.05 + Math.random() * 0.03,
-          pulsePhase: Math.random() * Math.PI * 2
-        });
-      },
-
-      // CONTINUOUS RAINBOW MODE
-      startContinuousRainbowMode: function () {
-        // Continuous gentle particle emission
-        this.continuousParticleInterval = setInterval(() => {
-          if (isReactionComplete) {
+      startParticleSystem: function () {
+        this.particleInterval = setInterval(() => {
+          if (this.reactionPhase === 1) {
             for (let i = 0; i < 2; i++) {
-              this.createGentleRainbowParticle();
+              this.createReactionParticle();
             }
           }
-        }, 400);
-        
-        // Continuous sparkle system
-        this.continuousSparkleInterval = setInterval(() => {
-          if (isReactionComplete) {
-            for (let i = 0; i < 3; i++) {
-              this.createRainbowSparkle();
-            }
-          }
-        }, 300);
+        }, 150);
       },
 
-      createGentleRainbowParticle: function () {
-        const colorIndex = Math.floor(Math.random() * this.particleColors.length);
+      createReactionParticle: function () {
+        const colorIndex = Math.floor(Math.random() * 6);
         const particle = document.createElement("a-sphere");
-        particle.setAttribute("radius", "0.01");
-        particle.setAttribute("color", this.particleColors[colorIndex]);
-        particle.setAttribute("opacity", "0.7");
+        particle.setAttribute("radius", "0.008");
+        particle.setAttribute("color", this.reactionColors[colorIndex]);
+        particle.setAttribute("opacity", "0.6");
         particle.setAttribute("transparent", "true");
         
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 0.15 + Math.random() * 0.1;
-        
         particle.setAttribute("position", {
-          x: Math.cos(angle) * distance,
-          y: 0.2 + Math.random() * 0.3,
-          z: Math.sin(angle) * distance
+          x: (Math.random() - 0.5) * 0.15,
+          y: 0.15 + Math.random() * 0.2,
+          z: (Math.random() - 0.5) * 0.15
         });
         
         particle.setAttribute("light", {
           type: "point",
-          color: this.particleColors[colorIndex],
-          intensity: 0.4,
-          distance: 0.2
-        });
-        
-        this.el.appendChild(particle);
-        
-        reactionParticles.push({
-          element: particle,
-          velocity: {
-            x: (Math.random() - 0.5) * 0.002,
-            y: 0.005 + Math.random() * 0.005,
-            z: (Math.random() - 0.5) * 0.002
-          },
-          life: 150 + Math.random() * 100,
-          spinSpeed: 0.005,
-          rotation: 0,
-          scale: 1,
-          pulseSpeed: 0.03 + Math.random() * 0.02,
-          pulsePhase: Math.random() * Math.PI * 2
-        });
-      },
-
-      createRainbowSparkle: function () {
-        const colorIndex = Math.floor(Math.random() * this.particleColors.length);
-        const sparkle = document.createElement("a-cone");
-        sparkle.setAttribute("radius-bottom", "0.008");
-        sparkle.setAttribute("radius-top", "0.001");
-        sparkle.setAttribute("height", "0.015");
-        sparkle.setAttribute("color", this.particleColors[colorIndex]);
-        sparkle.setAttribute("opacity", "0.8");
-        sparkle.setAttribute("transparent", "true");
-        
-        sparkle.setAttribute("position", {
-          x: (Math.random() - 0.5) * 0.4,
-          y: 0.1 + Math.random() * 0.5,
-          z: (Math.random() - 0.5) * 0.4
-        });
-        
-        sparkle.setAttribute("rotation", {
-          x: Math.random() * 360,
-          y: Math.random() * 360,
-          z: Math.random() * 360
-        });
-        
-        sparkle.setAttribute("light", {
-          type: "point",
-          color: this.particleColors[colorIndex],
-          intensity: 0.3 + Math.random() * 0.4,
+          color: this.reactionColors[colorIndex],
+          intensity: 0.2,
           distance: 0.15
         });
         
-        this.el.appendChild(sparkle);
+        this.el.appendChild(particle);
         
-        reactionSparkles.push({
-          element: sparkle,
-          life: 60 + Math.random() * 40,
-          twinkleSpeed: 0.03 + Math.random() * 0.04,
-          twinklePhase: Math.random() * Math.PI * 2,
+        reactionParticles.push({
+          element: particle,
+          velocity: {
+            x: (Math.random() - 0.5) * 0.004,
+            y: 0.006 + Math.random() * 0.004,
+            z: (Math.random() - 0.5) * 0.004
+          },
+          life: 60 + Math.random() * 30,
           scale: 1
         });
       },
 
-      addSuperReactionLight: function () {
-        // Multiple intense lights
-        this.reactionLight1 = document.createElement("a-light");
-        this.reactionLight1.setAttribute("type", "point");
-        this.reactionLight1.setAttribute("color", "#ff0000");
-        this.reactionLight1.setAttribute("intensity", "2");
-        this.reactionLight1.setAttribute("distance", "3");
-        this.reactionLight1.setAttribute("position", "0 0.5 0");
-        this.el.appendChild(this.reactionLight1);
-        
-        this.reactionLight2 = document.createElement("a-light");
-        this.reactionLight2.setAttribute("type", "point");
-        this.reactionLight2.setAttribute("color", "#00ff00");
-        this.reactionLight2.setAttribute("intensity", "1.5");
-        this.reactionLight2.setAttribute("distance", "2.5");
-        this.reactionLight2.setAttribute("position", "0.3 0.4 0.3");
-        this.el.appendChild(this.reactionLight2);
-        
-        this.reactionLight3 = document.createElement("a-light");
-        this.reactionLight3.setAttribute("type", "point");
-        this.reactionLight3.setAttribute("color", "#0000ff");
-        this.reactionLight3.setAttribute("intensity", "1.5");
-        this.reactionLight3.setAttribute("distance", "2.5");
-        this.reactionLight3.setAttribute("position", "-0.3 0.4 -0.3");
-        this.el.appendChild(this.reactionLight3);
-        
-        // Start light color cycling
-        this.lightCycleTime = 0;
-      },
-
-      updateLightColors: function () {
-        if (!this.reactionLight1) return;
-        
-        this.lightCycleTime += 0.03;
-        const hue1 = (this.lightCycleTime * 40) % 360;
-        const hue2 = (hue1 + 120) % 360;
-        const hue3 = (hue1 + 240) % 360;
-        
-        const intensity1 = isReactionComplete ? 0.8 : 1.5 + Math.sin(this.lightCycleTime * 5) * 0.5;
-        const intensity2 = isReactionComplete ? 0.6 : 1.2 + Math.sin(this.lightCycleTime * 4) * 0.3;
-        const intensity3 = isReactionComplete ? 0.6 : 1.2 + Math.sin(this.lightCycleTime * 3) * 0.3;
-        
-        this.reactionLight1.setAttribute('color', `hsl(${hue1}, 100%, 60%)`);
-        this.reactionLight1.setAttribute('intensity', intensity1);
-        
-        this.reactionLight2.setAttribute('color', `hsl(${hue2}, 100%, 60%)`);
-        this.reactionLight2.setAttribute('intensity', intensity2);
-        
-        this.reactionLight3.setAttribute('color', `hsl(${hue3}, 100%, 60%)`);
-        this.reactionLight3.setAttribute('intensity', intensity3);
-      },
-
-      playExplosionSound: function () {
-        // Visual explosion effect since audio might not work
-        const explosionText = document.createElement("div");
-        explosionText.innerHTML = "💥 BOOM! 💥";
-        explosionText.style.position = "absolute";
-        explosionText.style.top = "50%";
-        explosionText.style.left = "50%";
-        explosionText.style.transform = "translate(-50%, -50%)";
-        explosionText.style.fontSize = "40px";
-        explosionText.style.fontWeight = "bold";
-        explosionText.style.color = "#ff0000";
-        explosionText.style.textShadow = "0 0 20px #ff0000, 0 0 40px #ffff00";
-        explosionText.style.zIndex = "2000";
-        explosionText.style.animation = "rainbow 0.5s 3";
-        document.body.appendChild(explosionText);
-        
-        // Remove after animation
-        setTimeout(() => {
-          if (explosionText.parentNode) {
-            explosionText.parentNode.removeChild(explosionText);
+      startContinuousMode: function () {
+        this.continuousParticleInterval = setInterval(() => {
+          if (this.reactionPhase === 2) {
+            this.createGentleParticle();
           }
-        }, 1500);
+        }, 500);
+      },
+
+      createGentleParticle: function () {
+        const colorIndex = Math.floor(Math.random() * this.reactionColors.length);
+        const particle = document.createElement("a-sphere");
+        particle.setAttribute("radius", "0.006");
+        particle.setAttribute("color", this.reactionColors[colorIndex]);
+        particle.setAttribute("opacity", "0.4");
+        particle.setAttribute("transparent", "true");
+        
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 0.18 + Math.random() * 0.07;
+        
+        particle.setAttribute("position", {
+          x: Math.cos(angle) * distance,
+          y: 0.15 + Math.random() * 0.15,
+          z: Math.sin(angle) * distance
+        });
+        
+        this.el.appendChild(particle);
+        
+        reactionParticles.push({
+          element: particle,
+          velocity: {
+            x: Math.cos(angle) * 0.001,
+            y: 0.003,
+            z: Math.sin(angle) * 0.001
+          },
+          life: 100 + Math.random() * 50,
+          scale: 1
+        });
+      },
+
+      addReactionLighting: function () {
+        // Subtle ambient glow
+        this.reactionLight = document.createElement("a-light");
+        this.reactionLight.setAttribute("type", "point");
+        this.reactionLight.setAttribute("color", "#4dabf7");
+        this.reactionLight.setAttribute("intensity", "0.5");
+        this.reactionLight.setAttribute("distance", "1.5");
+        this.reactionLight.setAttribute("position", "0 0.4 0");
+        this.el.appendChild(this.reactionLight);
+        
+        // Gentle fill light
+        this.fillLight = document.createElement("a-light");
+        this.fillLight.setAttribute("type", "point");
+        this.fillLight.setAttribute("color", "#9f7aea");
+        this.fillLight.setAttribute("intensity", "0.3");
+        this.fillLight.setAttribute("distance", "1.2");
+        this.fillLight.setAttribute("position", "0.2 0.35 0.2");
+        this.el.appendChild(this.fillLight);
+      },
+
+      removeReactionLighting: function () {
+        if (this.reactionLight && this.reactionLight.parentNode) {
+          this.reactionLight.parentNode.removeChild(this.reactionLight);
+        }
+        if (this.fillLight && this.fillLight.parentNode) {
+          this.fillLight.parentNode.removeChild(this.fillLight);
+        }
       },
 
       stopParticleSystems: function () {
-        if (this.intenseParticleInterval) clearInterval(this.intenseParticleInterval);
+        if (this.particleInterval) clearInterval(this.particleInterval);
         if (this.continuousParticleInterval) clearInterval(this.continuousParticleInterval);
-        if (this.continuousSparkleInterval) clearInterval(this.continuousSparkleInterval);
         
-        // Remove all particles
         reactionParticles.forEach(particle => {
           if (particle.element.parentNode) {
             particle.element.parentNode.removeChild(particle.element);
           }
         });
         reactionParticles = [];
-        
-        // Remove all sparkles
-        reactionSparkles.forEach(sparkle => {
-          if (sparkle.element.parentNode) {
-            sparkle.element.parentNode.removeChild(sparkle.element);
-          }
-        });
-        reactionSparkles = [];
-      },
-
-      removeReactionLight: function () {
-        if (this.reactionLight1 && this.reactionLight1.parentNode) {
-          this.reactionLight1.parentNode.removeChild(this.reactionLight1);
-        }
-        if (this.reactionLight2 && this.reactionLight2.parentNode) {
-          this.reactionLight2.parentNode.removeChild(this.reactionLight2);
-        }
-        if (this.reactionLight3 && this.reactionLight3.parentNode) {
-          this.reactionLight3.parentNode.removeChild(this.reactionLight3);
-        }
       }
     });
 
     // PARTICLE ANIMATION SYSTEM
     AFRAME.registerComponent("particle-animator", {
       tick: function () {
-        // Update light colors continuously
-        const tubeA = document.querySelector("#tubeA");
-        if (tubeA && tubeA.components["reaction-system"]) {
-          tubeA.components["reaction-system"].updateLightColors();
-        }
-        
         // Update reaction particles
         for (let i = reactionParticles.length - 1; i >= 0; i--) {
           const particle = reactionParticles[i];
@@ -849,76 +580,24 @@
             continue;
           }
           
-          // Update position with gravity
+          // Update position
           const pos = particle.element.getAttribute('position');
-          if (particle.gravity) {
-            particle.velocity.y -= particle.gravity;
-          }
-          
           particle.element.setAttribute('position', {
             x: pos.x + particle.velocity.x,
             y: pos.y + particle.velocity.y,
             z: pos.z + particle.velocity.z
           });
           
-          // Update rotation for spinning particles
-          if (particle.rotationSpeed) {
-            const rot = particle.element.getAttribute('rotation') || {x: 0, y: 0, z: 0};
-            particle.element.setAttribute('rotation', {
-              x: rot.x + particle.rotationSpeed.x,
-              y: rot.y + particle.rotationSpeed.y,
-              z: rot.z + particle.rotationSpeed.z
-            });
-          }
-          
-          // Pulsing scale
-          if (particle.pulseSpeed) {
-            particle.pulsePhase += particle.pulseSpeed;
-            const pulse = 0.5 + Math.sin(particle.pulsePhase) * 0.5;
-            particle.element.setAttribute('scale', {
-              x: pulse,
-              y: pulse,
-              z: pulse
-            });
-          }
-          
           // Gentle fade out
-          const opacity = Math.min(1, particle.life / 50) * 0.7;
+          const opacity = Math.min(1, particle.life / 50) * 0.6;
           particle.element.setAttribute('opacity', opacity);
-        }
-        
-        // Update sparkles
-        for (let i = reactionSparkles.length - 1; i >= 0; i--) {
-          const sparkle = reactionSparkles[i];
-          sparkle.life--;
           
-          if (sparkle.life <= 0) {
-            if (sparkle.element.parentNode) {
-              sparkle.element.parentNode.removeChild(sparkle.element);
-            }
-            reactionSparkles.splice(i, 1);
-            continue;
-          }
-          
-          sparkle.twinklePhase += sparkle.twinkleSpeed;
-          const twinkle = 0.3 + Math.sin(sparkle.twinklePhase) * 0.7;
-          
-          const light = sparkle.element.getAttribute('light');
-          if (light) {
-            const color = light.color || "#ffffff";
-            sparkle.element.setAttribute('light', {
-              type: "point",
-              color: color,
-              intensity: twinkle * 0.6,
-              distance: light.distance || 0.15
-            });
-          }
-          
-          sparkle.scale = 0.3 + twinkle * 0.7;
-          sparkle.element.setAttribute('scale', {
-            x: sparkle.scale,
-            y: sparkle.scale,
-            z: sparkle.scale
+          // Subtle pulsing
+          const pulse = 0.8 + Math.sin(Date.now() * 0.01 + i) * 0.2;
+          particle.element.setAttribute('scale', {
+            x: pulse,
+            y: pulse,
+            z: pulse
           });
         }
       }
@@ -927,8 +606,6 @@
     // DROPLET SYSTEM
     AFRAME.registerComponent("drop-spawner", {
       init: function () {
-        console.log("Drop spawner initialized");
-        
         window.addEventListener("deviceorientation", (event) => {
           const tilt = event.beta || 0;
           currentPhoneTilt = tilt;
@@ -961,21 +638,14 @@
         document.getElementById("drop-count").textContent = dropCount;
         
         const drop = document.createElement("a-sphere");
-        drop.setAttribute("radius", "0.03");
-        drop.setAttribute("color", "#0088ff");
-        drop.setAttribute("opacity", "0.9");
+        drop.setAttribute("radius", "0.02");
+        drop.setAttribute("color", "#339af0");
+        drop.setAttribute("opacity", "0.85");
         
         const tubeA = document.querySelector("#tubeA");
         if (!tubeA) return;
         
-        drop.setAttribute("position", { x: 0, y: levelA + 0.1, z: 0 });
-        
-        drop.setAttribute("light", {
-          type: "point",
-          color: "#0088ff",
-          intensity: 0.5,
-          distance: 0.5
-        });
+        drop.setAttribute("position", { x: 0, y: levelA + 0.08, z: 0 });
         
         tubeA.appendChild(drop);
         
@@ -987,9 +657,9 @@
       },
 
       animateDrop: function (drop, dropId) {
-        let currentY = levelA + 0.1;
-        const velocity = { x: 0, y: -0.015, z: 0 };
-        const gravity = 0.0008;
+        let currentY = levelA + 0.08;
+        const velocity = { x: 0, y: -0.012, z: 0 };
+        const gravity = 0.0006;
         
         const animate = () => {
           if (!reactionDone) {
@@ -1002,14 +672,7 @@
               z: 0
             });
             
-            const wobble = Math.sin(Date.now() * 0.01) * 0.008;
-            drop.setAttribute("position", {
-              x: wobble,
-              y: currentY,
-              z: wobble * 0.5
-            });
-            
-            if (currentY < -0.2) {
+            if (currentY < -0.15) {
               if (drop.parentNode) drop.parentNode.removeChild(drop);
               const index = activeDrops.findIndex(d => d.id === dropId);
               if (index > -1) activeDrops.splice(index, 1);
@@ -1037,65 +700,56 @@
       if (!liquidA || !liquidB) return;
 
       if (levelA > MIN) {
-        levelA -= SPEED * 0.7; // Faster pouring
-        levelB += SPEED * 0.7;
+        levelA -= SPEED * 0.6;
+        levelB += SPEED * 0.6;
       }
 
       levelA = Math.max(MIN, levelA);
       levelB = Math.min(MAX, levelB);
 
-      // Update Tube A
       liquidA.setAttribute("height", levelA);
       liquidA.setAttribute("position", `0 ${levelA / 2} 0`);
 
-      // Update Tube B
       liquidB.setAttribute("height", levelB);
       liquidB.setAttribute("position", `0 ${levelB / 2} 0`);
       
-      // Update liquid surfaces
       const surfaceA = document.querySelector("#surfaceA");
       const surfaceB = document.querySelector("#surfaceB");
       if (surfaceA) surfaceA.setAttribute('position', `0 ${levelA} 0`);
       if (surfaceB) surfaceB.setAttribute('position', `0 ${levelB} 0`);
     }
 
-    // TRIGGER REACTION - SUPER DRAMATIC
+    // Trigger reaction - Professional approach
     function triggerReaction() {
       reactionDone = true;
       
-      // Fill Tube B completely for dramatic effect
+      // Complete the transfer
       levelB = MAX;
       const liquidB = document.querySelector("#liquidB");
       if (liquidB) {
         liquidB.setAttribute("height", levelB);
         liquidB.setAttribute("position", `0 ${levelB / 2} 0`);
-        liquidB.setAttribute("color", "#ffff00");
         const surfaceB = document.querySelector("#surfaceB");
         if (surfaceB) surfaceB.setAttribute('position', `0 ${levelB} 0`);
       }
       
-      // Update status with dramatic text
-      document.getElementById("reaction-status").innerHTML = "💥 <strong>EXPLOSIVE REACTION!</strong> 💥";
-      document.getElementById("reaction-status").style.animation = "rainbow 0.8s infinite, rainbowGlow 0.8s infinite";
-      document.getElementById("reaction-status").style.fontSize = "16px";
+      // Update status
+      document.getElementById("reaction-status").textContent = "Reaction Active";
+      document.getElementById("reaction-status").className = "status-badge reaction reaction-indicator";
       
       // Clear all drops
       clearAllDrops();
       
-      // SHAKE the entire UI
-      document.getElementById("hud").style.animation = "shake 1s 3";
-      
-      // Start SUPER DRAMATIC reaction
+      // Start reaction
       const tubeA = document.querySelector("#tubeA");
       if (tubeA && tubeA.components["reaction-system"]) {
         tubeA.components["reaction-system"].startReaction();
         
-        // After 3 seconds of intense reaction, transition to continuous mode
+        // After 3 seconds, transition to continuous mode
         setTimeout(() => {
           if (tubeA.components["reaction-system"]) {
             tubeA.components["reaction-system"].transitionToContinuousMode();
-            document.getElementById("reaction-status").innerHTML = "🌈 <strong>CONTINUOUS RAINBOW FLOW!</strong> 🌈";
-            document.getElementById("hud").style.animation = "";
+            document.getElementById("reaction-status").textContent = "Continuous Reaction";
           }
         }, 3000);
       }
@@ -1113,22 +767,27 @@
     function updateStatus() {
       const status = document.getElementById("experiment-status");
       if (tubeAVisible && tubeBVisible) {
-        status.textContent = "Ready! Tilt phone forward to pour";
+        status.textContent = "Ready for Transfer";
       } else if (tubeAVisible) {
-        status.textContent = "Tube A ready - Half full";
+        status.textContent = "Tube A Detected";
       } else if (tubeBVisible) {
-        status.textContent = "Tube B ready - Small amount";
+        status.textContent = "Tube B Detected";
       } else {
-        status.textContent = "Show marker A or B";
+        status.textContent = "Awaiting Markers";
       }
+      
+      // Update pouring status badge
+      const pouringStatus = document.getElementById("pouring-status");
+      pouringStatus.textContent = isPouring ? "Active" : "Inactive";
+      pouringStatus.className = isPouring ? "status-badge pouring" : "status-badge";
     }
 
     // Reset function
     window.resetExperiment = function() {
       reactionDone = false;
       dropCount = 0;
-      levelA = 0.25; // Reset to half full
-      levelB = 0.1;  // Reset to small amount
+      levelA = 0.25;
+      levelB = 0.1;
       isPouring = false;
       reactionAnimationActive = false;
       isReactionComplete = false;
@@ -1153,36 +812,37 @@
         tubeB.setAttribute('position', '0 0 0');
       }
       
-      // Reset liquids to visible state
+      // Reset liquids
       updateTubeALiquidVisibility();
       updateTubeBLiquidVisibility();
       
-      // Reset glass color
-      const glass = document.querySelector("#tubeA a-cylinder");
-      if (glass) {
-        glass.setAttribute('color', '#ffffff');
-        glass.setAttribute('emissive', '#000000');
-        glass.setAttribute('emissive-intensity', '0');
+      // Reset liquid colors
+      const liquidA = document.querySelector("#liquidA");
+      const liquidB = document.querySelector("#liquidB");
+      if (liquidA) {
+        liquidA.setAttribute('color', '#339af0');
+        liquidA.setAttribute('emissive', '#000000');
+        liquidA.setAttribute('emissive-intensity', '0');
+      }
+      if (liquidB) {
+        liquidB.setAttribute('color', '#ffd43b');
+        liquidB.setAttribute('emissive', '#000000');
+        liquidB.setAttribute('emissive-intensity', '0');
       }
       
-      // Clear drops and particles
+      // Clear particles
       clearAllDrops();
       reactionParticles.forEach(p => {
         if (p.element.parentNode) p.element.parentNode.removeChild(p.element);
       });
       reactionParticles = [];
-      reactionSparkles.forEach(s => {
-        if (s.element.parentNode) s.element.parentNode.removeChild(s.element);
-      });
-      reactionSparkles = [];
       
       // Update UI
       document.getElementById("drop-count").textContent = "0";
-      document.getElementById("reaction-status").innerHTML = "Not reacted";
-      document.getElementById("reaction-status").style.animation = "none";
-      document.getElementById("reaction-status").style.fontSize = "";
-      document.getElementById("reaction-status").style.color = "white";
-      document.getElementById("hud").style.animation = "";
+      document.getElementById("reaction-status").textContent = "Not Started";
+      document.getElementById("reaction-status").className = "status-badge";
+      document.getElementById("pouring-status").textContent = "Inactive";
+      document.getElementById("pouring-status").className = "status-badge";
       document.getElementById("tilt-display").textContent = "0°";
       
       updateStatus();
@@ -1193,25 +853,48 @@
 </head>
 
 <body style="margin:0; overflow:hidden;">
-  <!-- HUD Display -->
+  <!-- Professional HUD Display -->
   <div id="hud">
-    <h3 style="margin: 0 0 10px 0;">🧪 AR Chemical Experiment</h3>
-    <p><strong>Status:</strong> <span id="experiment-status">Show marker A or B</span></p>
-    <p><strong>Tilt:</strong> <span id="tilt-display">0°</span></p>
-    <p><strong>Pouring:</strong> <span id="pouring-status">No</span></p>
-    <p><strong>Markers:</strong> 
-      A: <span id="marker-a-status">❌</span> | 
-      B: <span id="marker-b-status">❌</span>
-    </p>
-    <p><strong>Reaction:</strong> <span id="reaction-status">Not reacted</span></p>
-    <button onclick="resetExperiment()" style="margin-top: 5px; padding: 5px 10px;">
+    <h3>AR Chemical Experiment</h3>
+    
+    <div class="status-item">
+      <span class="status-label">Status:</span>
+      <span class="status-value" id="experiment-status">Awaiting Markers</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">Tilt Angle:</span>
+      <span class="status-value" id="tilt-display">0°</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">Transfer:</span>
+      <span class="status-badge" id="pouring-status">Inactive</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">Marker A:</span>
+      <span class="status-badge not-found" id="marker-a-status">Not Found</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">Marker B:</span>
+      <span class="status-badge not-found" id="marker-b-status">Not Found</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">Reaction:</span>
+      <span class="status-badge" id="reaction-status">Not Started</span>
+    </div>
+    
+    <button onclick="resetExperiment()">
       Reset Experiment
     </button>
   </div>
   
   <!-- Drop Counter -->
   <div class="drop-counter">
-    💧 Drops: <span id="drop-count">0</span>
+    Transfer Drops: <span id="drop-count">0</span>
   </div>
 
   <a-scene
@@ -1219,38 +902,38 @@
     arjs="debugUIEnabled:false;"
     device-orientation-permission-ui="enabled: true">
 
-    <!-- Lighting -->
-    <a-light type="ambient" intensity="0.8"></a-light>
-    <a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
+    <!-- Professional Lighting -->
+    <a-light type="ambient" intensity="0.7" color="#e0e0e0"></a-light>
+    <a-light type="directional" position="1 2 1" intensity="0.8" color="#ffffff"></a-light>
 
-    <!-- ========== TEST TUBE A (Half Full Blue Liquid) ========= -->
+    <!-- ========== TEST TUBE A ========= -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerA.patt"
       marker-tracker="id: A">
 
       <a-entity id="tubeA" drop-spawner reaction-system="tubeId: A" particle-animator position="0 0 0">
-        <!-- Glass -->
+        <!-- Glass - Professional look -->
         <a-cylinder
-          radius="0.15"
+          radius="0.14"
           height="0.5"
           position="0 0.25 0"
-          color="#ffffff"
-          opacity="0.25"
-          roughness="0.1"
-          metalness="0.5">
+          color="#f8f9fa"
+          opacity="0.2"
+          roughness="0.05"
+          metalness="0.8">
         </a-cylinder>
 
-        <!-- Liquid A - HALF FULL FROM START -->
+        <!-- Liquid A - Half full initially -->
         <a-cylinder
           id="liquidA"
-          radius="0.13"
+          radius="0.12"
           height="0.25"
           position="0 0.125 0"
-          color="#0088ff"
-          opacity="0.95"
-          roughness="0.2"
-          metalness="0.1"
+          color="#339af0"
+          opacity="0.9"
+          roughness="0.1"
+          metalness="0.3"
           emissive="#000000"
           emissive-intensity="0"
           transparent="true">
@@ -1259,10 +942,10 @@
         <!-- Liquid surface -->
         <a-circle
           id="surfaceA"
-          radius="0.13"
+          radius="0.12"
           position="0 0.25 0"
-          color="#0088ff"
-          opacity="0.95"
+          color="#339af0"
+          opacity="0.9"
           rotation="-90 0 0"
           transparent="true">
         </a-circle>
@@ -1271,7 +954,7 @@
 
     </a-marker>
 
-    <!-- ========== TEST TUBE B (Small Yellow Liquid) ========= -->
+    <!-- ========== TEST TUBE B ========= -->
     <a-marker
       type="pattern"
       url="markers/testtube_markerB.patt"
@@ -1280,35 +963,35 @@
       <a-entity id="tubeB" position="0 0 0">
         <!-- Glass -->
         <a-cylinder
-          radius="0.15"
+          radius="0.14"
           height="0.5"
           position="0 0.25 0"
-          color="#ffffff"
-          opacity="0.25"
-          roughness="0.1"
-          metalness="0.5">
+          color="#f8f9fa"
+          opacity="0.2"
+          roughness="0.05"
+          metalness="0.8">
         </a-cylinder>
 
-        <!-- Liquid B - SMALL AMOUNT FROM START -->
+        <!-- Liquid B - Small amount initially -->
         <a-cylinder
           id="liquidB"
-          radius="0.13"
+          radius="0.12"
           height="0.1"
           position="0 0.05 0"
-          color="#ffff00"
-          opacity="0.95"
-          roughness="0.2"
-          metalness="0.1"
+          color="#ffd43b"
+          opacity="0.9"
+          roughness="0.1"
+          metalness="0.3"
           transparent="true">
         </a-cylinder>
 
         <!-- Liquid surface -->
         <a-circle
           id="surfaceB"
-          radius="0.13"
+          radius="0.12"
           position="0 0.1 0"
-          color="#ffff00"
-          opacity="0.95"
+          color="#ffd43b"
+          opacity="0.9"
           rotation="-90 0 0"
           transparent="true">
         </a-circle>
@@ -1324,14 +1007,7 @@
   <script>
     // Update UI
     setInterval(() => {
-      const pouringStatus = document.getElementById("pouring-status");
-      pouringStatus.textContent = isPouring ? "Yes" : "No";
-      pouringStatus.style.color = isPouring ? "#00ff00" : "white";
-      pouringStatus.style.fontWeight = isPouring ? "bold" : "normal";
-      
-      if (isReactionComplete) {
-        document.getElementById("reaction-status").style.animation = "rainbow 1.5s infinite, rainbowGlow 1.5s infinite";
-      }
+      updateStatus();
     }, 100);
   </script>
 </body>
