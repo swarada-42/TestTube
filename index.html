@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Reaction – Instant Trigger</title>
+  <title>AR Chemical Experiment – Touch & Drag Mixing</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -15,6 +15,7 @@
       margin: 0;
       overflow: hidden;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      touch-action: none;
     }
     #hud {
       position: absolute;
@@ -30,19 +31,23 @@
       border: 1px solid rgba(255, 255, 255, 0.1);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     }
-    .reaction-trigger {
+    .interaction-indicator {
       position: absolute;
-      top: 15px;
-      right: 15px;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       background: rgba(159, 122, 234, 0.9);
       color: white;
-      padding: 12px 18px;
+      padding: 12px 24px;
       border-radius: 12px;
       z-index: 1000;
       font-weight: 600;
       backdrop-filter: blur(5px);
       border: 1px solid rgba(255, 255, 255, 0.15);
       box-shadow: 0 4px 16px rgba(159, 122, 234, 0.3);
+      text-align: center;
+      max-width: 80%;
+      animation: pulse 2s infinite;
     }
     h3 {
       margin: 0 0 12px 0;
@@ -89,7 +94,7 @@
     .active {
       background: rgba(159, 122, 234, 0.2);
       color: #9f7aea;
-      animation: pulse 1.5s infinite;
+      animation: pulse 1s infinite;
     }
     .reaction {
       background: rgba(245, 158, 11, 0.2);
@@ -118,12 +123,16 @@
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
+      50% { opacity: 0.7; }
     }
     @keyframes shake {
       0%, 100% { transform: translateX(0); }
       10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
       20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 10px rgba(72, 187, 120, 0.5); }
+      50% { box-shadow: 0 0 20px rgba(72, 187, 120, 0.8); }
     }
   </style>
 
@@ -132,9 +141,19 @@
     let tubeAVisible = false;
     let tubeBVisible = false;
     let reactionTriggered = false;
-    let tiltThreshold = 30;
     let reactionActive = false;
-    let shakeTimer = null;
+    let tubeAElement = null;
+    let tubeBElement = null;
+    let isDragging = false;
+    let draggedTube = null;
+    let initialDragPosition = { x: 0, y: 0, z: 0 };
+    let mixDistance = 0.3; // Distance for mixing to occur
+    let isMixing = false;
+    
+    // Touch tracking
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchMoved = false;
 
     // MARKER TRACKING
     AFRAME.registerComponent("marker-tracker", {
@@ -144,13 +163,21 @@
         this.el.addEventListener("markerFound", () => {
           if (this.data.id === "A") {
             tubeAVisible = true;
+            tubeAElement = this.el;
             document.getElementById("marker-a-status").textContent = "Detected";
             document.getElementById("marker-a-status").className = "status-badge found";
+            
+            // Add touch interaction to tube A
+            this.addTouchInteraction(this.el, "A");
           }
           if (this.data.id === "B") {
             tubeBVisible = true;
+            tubeBElement = this.el;
             document.getElementById("marker-b-status").textContent = "Detected";
             document.getElementById("marker-b-status").className = "status-badge found";
+            
+            // Add touch interaction to tube B
+            this.addTouchInteraction(this.el, "B");
           }
           updateStatus();
         });
@@ -158,20 +185,216 @@
         this.el.addEventListener("markerLost", () => {
           if (this.data.id === "A") {
             tubeAVisible = false;
+            tubeAElement = null;
             document.getElementById("marker-a-status").textContent = "Not Found";
             document.getElementById("marker-a-status").className = "status-badge not-found";
           }
           if (this.data.id === "B") {
             tubeBVisible = false;
+            tubeBElement = null;
             document.getElementById("marker-b-status").textContent = "Not Found";
             document.getElementById("marker-b-status").className = "status-badge not-found";
           }
           updateStatus();
         });
+      },
+      
+      addTouchInteraction: function(el, tubeId) {
+        // Create a transparent hitbox around the tube for better touch detection
+        const hitbox = document.createElement("a-cylinder");
+        hitbox.setAttribute("radius", "0.2");
+        hitbox.setAttribute("height", "0.7");
+        hitbox.setAttribute("position", "0 0.35 0");
+        hitbox.setAttribute("visible", "false");
+        hitbox.setAttribute("class", "touch-hitbox");
+        hitbox.setAttribute("data-tube-id", tubeId);
+        el.appendChild(hitbox);
+        
+        // Add glow effect when touch is active
+        const glow = document.createElement("a-ring");
+        glow.setAttribute("radius-inner", "0.18");
+        glow.setAttribute("radius-outer", "0.2");
+        glow.setAttribute("position", "0 0.35 0");
+        glow.setAttribute("rotation", "-90 0 0");
+        glow.setAttribute("color", "#48bb78");
+        glow.setAttribute("opacity", "0");
+        glow.setAttribute("id", `glow-${tubeId}`);
+        glow.setAttribute("transparent", "true");
+        el.appendChild(glow);
       }
     });
 
-    // INSTANT CHEMICAL REACTION SYSTEM
+    // TOUCH INTERACTION SYSTEM
+    AFRAME.registerComponent("touch-drag", {
+      init: function () {
+        const scene = this.el.sceneEl;
+        
+        // Handle touch start
+        scene.addEventListener("touchstart", (e) => {
+          if (!tubeAVisible || !tubeBVisible || reactionTriggered) return;
+          
+          const touch = e.touches[0];
+          touchStartX = touch.clientX;
+          touchStartY = touch.clientY;
+          touchMoved = false;
+          
+          // Raycast to detect which tube was touched
+          this.detectTouchedTube(touch.clientX, touch.clientY);
+        });
+        
+        // Handle touch move
+        scene.addEventListener("touchmove", (e) => {
+          if (!draggedTube || reactionTriggered) return;
+          
+          e.preventDefault();
+          touchMoved = true;
+          const touch = e.touches[0];
+          const deltaX = touch.clientX - touchStartX;
+          const deltaY = touch.clientY - touchStartY;
+          
+          // Convert screen delta to AR world movement
+          this.moveDraggedTube(deltaX * 0.002, -deltaY * 0.002);
+          
+          // Check for mixing distance
+          this.checkMixingDistance();
+        });
+        
+        // Handle touch end
+        scene.addEventListener("touchend", (e) => {
+          if (!draggedTube) return;
+          
+          if (isMixing && !reactionTriggered) {
+            // If tubes were close enough, trigger reaction
+            triggerChemicalReaction();
+          } else {
+            // Return tube to original position
+            this.returnTubeToOriginalPosition();
+          }
+          
+          this.endDrag();
+        });
+      },
+      
+      detectTouchedTube: function(touchX, touchY) {
+        // Simple raycasting - check which tube is closer to touch point
+        if (!tubeAElement || !tubeBElement) return;
+        
+        // For simplicity, we'll use the first tube found
+        // In a full implementation, you'd use proper raycasting
+        const tubeAPos = tubeAElement.object3D.position;
+        const tubeBPos = tubeBElement.object3D.position;
+        
+        // Store which tube is being dragged
+        draggedTube = tubeAElement; // Default to tube A for demo
+        
+        // Store original position
+        initialDragPosition = {
+          x: draggedTube.object3D.position.x,
+          y: draggedTube.object3D.position.y,
+          z: draggedTube.object3D.position.z
+        };
+        
+        isDragging = true;
+        
+        // Show glow effect on dragged tube
+        const glow = document.querySelector(`#glow-A`);
+        if (glow) {
+          glow.setAttribute("opacity", "0.6");
+          glow.setAttribute("animation", "property: opacity; from: 0.6; to: 0.3; dur: 800; loop: true");
+        }
+        
+        updateInteractionIndicator("Dragging Tube A... Touch near Tube B to mix");
+      },
+      
+      moveDraggedTube: function(deltaX, deltaY) {
+        if (!draggedTube) return;
+        
+        const currentPos = draggedTube.object3D.position;
+        draggedTube.object3D.position.set(
+          initialDragPosition.x + deltaX,
+          currentPos.y,
+          initialDragPosition.z + deltaY
+        );
+      },
+      
+      checkMixingDistance: function() {
+        if (!draggedTube || !tubeAElement || !tubeBElement) return;
+        
+        const tube1Pos = draggedTube.object3D.position;
+        const tube2Pos = (draggedTube === tubeAElement) ? tubeBElement.object3D.position : tubeAElement.object3D.position;
+        
+        const distance = Math.sqrt(
+          Math.pow(tube1Pos.x - tube2Pos.x, 2) +
+          Math.pow(tube1Pos.z - tube2Pos.z, 2)
+        );
+        
+        if (distance < mixDistance) {
+          isMixing = true;
+          
+          // Show mixing indication
+          document.getElementById("experiment-status").textContent = "Mixing... Release to React!";
+          document.getElementById("experiment-status").className = "status-badge active";
+          
+          // Pulse both tubes
+          const glowA = document.querySelector(`#glow-A`);
+          const glowB = document.querySelector(`#glow-B`);
+          if (glowA) glowA.setAttribute("color", "#f59e0b");
+          if (glowB) glowB.setAttribute("color", "#f59e0b");
+          
+        } else {
+          isMixing = false;
+          document.getElementById("experiment-status").textContent = "Drag to Mix";
+          document.getElementById("experiment-status").className = "status-badge ready";
+          
+          const glowA = document.querySelector(`#glow-A`);
+          const glowB = document.querySelector(`#glow-B`);
+          if (glowA) glowA.setAttribute("color", "#48bb78");
+          if (glob) glowB.setAttribute("color", "#48bb78");
+        }
+      },
+      
+      returnTubeToOriginalPosition: function() {
+        if (!draggedTube) return;
+        
+        // Animate back to original position
+        const currentPos = draggedTube.object3D.position;
+        const targetPos = initialDragPosition;
+        
+        const animateReturn = () => {
+          currentPos.x += (targetPos.x - currentPos.x) * 0.2;
+          currentPos.z += (targetPos.z - currentPos.z) * 0.2;
+          
+          if (Math.abs(currentPos.x - targetPos.x) > 0.001 || 
+              Math.abs(currentPos.z - targetPos.z) > 0.001) {
+            requestAnimationFrame(animateReturn);
+          }
+        };
+        
+        animateReturn();
+      },
+      
+      endDrag: function() {
+        isDragging = false;
+        draggedTube = null;
+        
+        // Hide glow effects
+        const glowA = document.querySelector(`#glow-A`);
+        const glowB = document.querySelector(`#glow-B`);
+        if (glowA) {
+          glowA.setAttribute("opacity", "0");
+          glowA.removeAttribute("animation");
+          glowA.setAttribute("color", "#48bb78");
+        }
+        if (glowB) {
+          glowB.setAttribute("opacity", "0");
+          glowB.setAttribute("color", "#48bb78");
+        }
+        
+        updateInteractionIndicator("Touch & drag one tube to another");
+      }
+    });
+
+    // CHEMICAL REACTION SYSTEM
     AFRAME.registerComponent("chemical-reaction", {
       schema: {
         tubeId: { type: "string" }
@@ -183,7 +406,7 @@
         this.reactionTime = 0;
         this.particles = [];
         
-        // Professional chemical reaction colors
+        // Reaction colors
         this.reactionColors = [
           '#4dabf7', '#15aabf', '#0ca678', '#40c057',
           '#82c91e', '#fab005', '#fd7e14', '#fa5252',
@@ -195,18 +418,17 @@
         if (this.isActive) {
           this.reactionTime += 0.05;
           
-          // Chemical reaction oscillation
-          const oscillation = Math.sin(this.reactionTime * 3) * 8;
-          const shake = Math.sin(this.reactionTime * 8) * 3;
+          // Mixing motion - tubes move together
+          const mixMotion = Math.sin(this.reactionTime * 2) * 5;
           
           this.el.setAttribute('rotation', {
-            x: oscillation + shake,
-            y: this.reactionTime * 15,
-            z: Math.cos(this.reactionTime * 2) * 4
+            x: mixMotion,
+            y: this.reactionTime * 10,
+            z: Math.cos(this.reactionTime * 1.5) * 3
           });
           
-          // Pulsing effect during reaction
-          const pulse = 1 + Math.sin(this.reactionTime * 4) * 0.05;
+          // Pulsing during reaction
+          const pulse = 1 + Math.sin(this.reactionTime * 3) * 0.08;
           this.el.setAttribute('scale', {
             x: pulse,
             y: pulse,
@@ -226,17 +448,17 @@
         const liquidB = document.querySelector("#liquidB");
         
         if (liquidA && liquidB) {
-          const hue = (this.reactionTime * 40) % 360;
+          const hue = (this.reactionTime * 30) % 360;
           
-          liquidA.setAttribute('color', `hsl(${hue}, 85%, 60%)`);
-          liquidA.setAttribute('emissive', `hsl(${hue}, 85%, 60%)`);
-          liquidA.setAttribute('emissive-intensity', 0.4 + Math.sin(this.reactionTime * 5) * 0.3);
+          liquidA.setAttribute('color', `hsl(${hue}, 90%, 55%)`);
+          liquidA.setAttribute('emissive', `hsl(${hue}, 90%, 55%)`);
+          liquidA.setAttribute('emissive-intensity', 0.5 + Math.sin(this.reactionTime * 4) * 0.3);
           
-          // Complementary color for chemical reaction
-          const complementaryHue = (hue + 180) % 360;
-          liquidB.setAttribute('color', `hsl(${complementaryHue}, 85%, 60%)`);
-          liquidB.setAttribute('emissive', `hsl(${complementaryHue}, 85%, 60%)`);
-          liquidB.setAttribute('emissive-intensity', 0.3 + Math.sin(this.reactionTime * 4) * 0.2);
+          // Complementary mixing color
+          const mixHue = (hue + 120) % 360;
+          liquidB.setAttribute('color', `hsl(${mixHue}, 90%, 55%)`);
+          liquidB.setAttribute('emissive', `hsl(${mixHue}, 90%, 55%)`);
+          liquidB.setAttribute('emissive-intensity', 0.4 + Math.sin(this.reactionTime * 3) * 0.2);
         }
       },
 
@@ -245,134 +467,129 @@
         this.reactionTime = 0;
         reactionActive = true;
         
-        // Shake the entire interface for dramatic effect
-        this.shakeInterface();
+        // Move tubes together for mixing effect
+        this.moveTubesTogether();
         
-        // Create immediate chemical reaction effects
-        this.createReactionExplosion();
+        // Create mixing effects
+        this.createMixingEffects();
         this.addReactionLighting();
         
-        // Start continuous reaction effects
-        this.startContinuousReaction();
+        // Start continuous mixing effects
+        this.startContinuousMixing();
         
         // Update UI
         document.getElementById("reaction-status").textContent = "Chemical Reaction Active";
         document.getElementById("reaction-status").className = "status-badge reaction";
-        document.querySelector(".reaction-trigger").textContent = "⚗️ REACTION ACTIVE";
-        document.querySelector(".reaction-trigger").style.background = "rgba(245, 158, 11, 0.9)";
+        updateInteractionIndicator("⚗️ Chemical Reaction in Progress!");
       },
 
-      shakeInterface: function () {
-        // Shake the HUD
-        const hud = document.getElementById("hud");
-        hud.style.animation = "shake 0.5s";
+      moveTubesTogether: function () {
+        if (!tubeAElement || !tubeBElement) return;
         
-        // Stop shaking after animation
-        setTimeout(() => {
-          hud.style.animation = "";
-        }, 500);
+        // Calculate midpoint
+        const posA = tubeAElement.object3D.position;
+        const posB = tubeBElement.object3D.position;
+        
+        const midX = (posA.x + posB.x) / 2;
+        const midZ = (posA.z + posB.z) / 2;
+        
+        // Animate tubes to meet in the middle
+        const animateTogether = (time = 0) => {
+          time += 0.05;
+          
+          posA.x += (midX - posA.x) * 0.1;
+          posA.z += (midZ - posA.z) * 0.1;
+          posB.x += (midX - posB.x) * 0.1;
+          posB.z += (midZ - posB.z) * 0.1;
+          
+          // Gentle up-down motion while mixing
+          const floatOffset = Math.sin(time * 3) * 0.02;
+          posA.y = initialDragPosition.y + floatOffset;
+          posB.y = initialDragPosition.y + floatOffset;
+          
+          if (time < 2) {
+            requestAnimationFrame(() => animateTogether(time));
+          }
+        };
+        
+        animateTogether();
       },
 
-      createReactionExplosion: function () {
-        // Create chemical bubble explosion
-        for (let i = 0; i < 25; i++) {
+      createMixingEffects: function () {
+        // Create mixing bubble explosion
+        for (let i = 0; i < 30; i++) {
           setTimeout(() => {
-            this.createChemicalBubble(i);
-          }, i * 20);
+            this.createMixingBubble(i);
+          }, i * 15);
         }
         
-        // Create chemical reaction ring
-        this.createReactionRing();
+        // Create mixing ring
+        this.createMixingRing();
         
-        // Create secondary burst after delay
-        setTimeout(() => {
-          for (let i = 0; i < 15; i++) {
-            this.createChemicalSpark(i);
-          }
-        }, 300);
+        // Create connection effect between tubes
+        this.createConnectionEffect();
       },
 
-      createChemicalBubble: function (index) {
+      createMixingBubble: function (index) {
         const colorIndex = index % this.reactionColors.length;
         const bubble = document.createElement("a-sphere");
-        bubble.setAttribute("radius", "0.014");
+        bubble.setAttribute("radius", "0.012");
         bubble.setAttribute("color", this.reactionColors[colorIndex]);
-        bubble.setAttribute("opacity", "0.8");
+        bubble.setAttribute("opacity", "0.85");
         bubble.setAttribute("transparent", "true");
         
-        // Random direction for chemical reaction
-        const angle = Math.random() * Math.PI * 2;
-        const verticalAngle = (Math.random() - 0.5) * Math.PI * 0.5;
-        const speed = 0.015 + Math.random() * 0.01;
+        // Random position between tubes
+        const mixPos = this.getRandomMixingPosition();
         
-        bubble.setAttribute("position", {
-          x: Math.cos(angle) * 0.08,
-          y: 0.2,
-          z: Math.sin(angle) * 0.08
-        });
+        bubble.setAttribute("position", mixPos);
         
         bubble.setAttribute("light", {
           type: "point",
           color: this.reactionColors[colorIndex],
-          intensity: 0.5,
-          distance: 0.25
+          intensity: 0.6,
+          distance: 0.2
         });
         
         this.el.appendChild(bubble);
         
-        // Store particle for animation
+        // Store particle
         this.particles.push({
           element: bubble,
           velocity: {
-            x: Math.cos(angle) * Math.cos(verticalAngle) * speed,
-            y: Math.sin(verticalAngle) * speed + 0.008,
-            z: Math.sin(angle) * Math.cos(verticalAngle) * speed
+            x: (Math.random() - 0.5) * 0.008,
+            y: 0.01 + Math.random() * 0.006,
+            z: (Math.random() - 0.5) * 0.008
           },
-          life: 80 + Math.random() * 40,
-          rotationSpeed: (Math.random() - 0.5) * 0.1
+          life: 70 + Math.random() * 50
         });
       },
 
-      createChemicalSpark: function (index) {
-        const spark = document.createElement("a-tetrahedron");
-        spark.setAttribute("radius", "0.01");
-        spark.setAttribute("color", this.reactionColors[index % 4]);
-        spark.setAttribute("opacity", "0.9");
-        spark.setAttribute("transparent", "true");
+      getRandomMixingPosition: function() {
+        if (!tubeAElement || !tubeBElement) return { x: 0, y: 0.2, z: 0 };
         
-        spark.setAttribute("position", {
-          x: (Math.random() - 0.5) * 0.15,
-          y: 0.15 + Math.random() * 0.1,
-          z: (Math.random() - 0.5) * 0.15
-        });
+        const posA = tubeAElement.object3D.position;
+        const posB = tubeBElement.object3D.position;
         
-        spark.setAttribute("rotation", {
-          x: Math.random() * 360,
-          y: Math.random() * 360,
-          z: Math.random() * 360
-        });
-        
-        this.el.appendChild(spark);
-        
-        this.particles.push({
-          element: spark,
-          velocity: {
-            x: (Math.random() - 0.5) * 0.006,
-            y: 0.01 + Math.random() * 0.005,
-            z: (Math.random() - 0.5) * 0.006
-          },
-          life: 60 + Math.random() * 30,
-          rotationSpeed: 0.02 + Math.random() * 0.03
-        });
+        const t = Math.random();
+        return {
+          x: posA.x + (posB.x - posA.x) * t,
+          y: 0.2 + Math.random() * 0.2,
+          z: posA.z + (posB.z - posA.z) * t
+        };
       },
 
-      createReactionRing: function () {
+      createMixingRing: function () {
         const ring = document.createElement("a-ring");
-        ring.setAttribute("radius-inner", "0.14");
-        ring.setAttribute("radius-outer", "0.16");
+        ring.setAttribute("radius-inner", "0.16");
+        ring.setAttribute("radius-outer", "0.18");
         ring.setAttribute("color", "#ffd43b");
-        ring.setAttribute("opacity", "0.7");
-        ring.setAttribute("position", "0 0.25 0");
+        ring.setAttribute("opacity", "0.8");
+        
+        if (tubeAElement) {
+          const pos = tubeAElement.object3D.position;
+          ring.setAttribute("position", { x: pos.x, y: 0.25, z: pos.z });
+        }
+        
         ring.setAttribute("rotation", "-90 0 0");
         ring.setAttribute("transparent", "true");
         
@@ -380,10 +597,10 @@
         
         // Animate ring expansion
         let scale = 1;
-        let opacity = 0.7;
+        let opacity = 0.8;
         const animate = () => {
-          scale += 0.06;
-          opacity -= 0.03;
+          scale += 0.04;
+          opacity -= 0.02;
           
           ring.setAttribute("scale", `${scale} ${scale} ${scale}`);
           ring.setAttribute("opacity", opacity);
@@ -396,6 +613,43 @@
         };
         
         animate();
+      },
+
+      createConnectionEffect: function () {
+        if (!tubeAElement || !tubeBElement) return;
+        
+        const connection = document.createElement("a-cylinder");
+        connection.setAttribute("radius", "0.02");
+        connection.setAttribute("height", "0.5");
+        connection.setAttribute("color", "#4dabf7");
+        connection.setAttribute("opacity", "0.6");
+        connection.setAttribute("transparent", "true");
+        
+        const posA = tubeAElement.object3D.position;
+        const posB = tubeBElement.object3D.position;
+        
+        // Position cylinder between tubes
+        const midX = (posA.x + posB.x) / 2;
+        const midY = (posA.y + posB.y) / 2;
+        const midZ = (posA.z + posB.z) / 2;
+        
+        connection.setAttribute("position", { x: midX, y: midY, z: midZ });
+        
+        // Rotate to point from A to B
+        const dx = posB.x - posA.x;
+        const dz = posB.z - posA.z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        const rotationY = Math.atan2(dz, dx) * (180 / Math.PI);
+        
+        connection.setAttribute("rotation", `0 ${rotationY} 0`);
+        connection.setAttribute("height", distance);
+        
+        this.el.appendChild(connection);
+        
+        // Remove after animation
+        setTimeout(() => {
+          if (connection.parentNode) connection.parentNode.removeChild(connection);
+        }, 1000);
       },
 
       updateParticles: function () {
@@ -419,78 +673,61 @@
             z: pos.z + particle.velocity.z
           });
           
-          // Update rotation for sparks
-          if (particle.rotationSpeed) {
-            const rot = particle.element.getAttribute('rotation') || {x: 0, y: 0, z: 0};
-            particle.element.setAttribute('rotation', {
-              x: rot.x + particle.rotationSpeed,
-              y: rot.y + particle.rotationSpeed,
-              z: rot.z + particle.rotationSpeed
-            });
-          }
-          
           // Fade out
-          const opacity = Math.min(1, particle.life / 50) * 0.8;
+          const opacity = Math.min(1, particle.life / 50) * 0.85;
           particle.element.setAttribute('opacity', opacity);
         }
       },
 
       addReactionLighting: function () {
-        // Chemical reaction lighting
+        // Mixing reaction lighting
         this.reactionLight = document.createElement("a-light");
         this.reactionLight.setAttribute("type", "point");
         this.reactionLight.setAttribute("color", "#4dabf7");
-        this.reactionLight.setAttribute("intensity", "0.8");
-        this.reactionLight.setAttribute("distance", "2");
-        this.reactionLight.setAttribute("position", "0 0.5 0");
-        this.el.appendChild(this.reactionLight);
+        this.reactionLight.setAttribute("intensity", "0.9");
+        this.reactionLight.setAttribute("distance", "2.5");
         
-        // Secondary reaction light
-        this.secondaryLight = document.createElement("a-light");
-        this.secondaryLight.setAttribute("type", "point");
-        this.secondaryLight.setAttribute("color", "#ffd43b");
-        this.secondaryLight.setAttribute("intensity", "0.5");
-        this.secondaryLight.setAttribute("distance", "1.5");
-        this.secondaryLight.setAttribute("position", "0.2 0.4 0.2");
-        this.el.appendChild(this.secondaryLight);
+        if (tubeAElement) {
+          const pos = tubeAElement.object3D.position;
+          this.reactionLight.setAttribute("position", { x: pos.x, y: 0.5, z: pos.z });
+        }
+        
+        this.el.appendChild(this.reactionLight);
       },
 
-      startContinuousReaction: function () {
-        // Add continuous gentle bubbles
+      startContinuousMixing: function () {
+        // Add continuous mixing bubbles
         setInterval(() => {
           if (this.isActive) {
             this.createContinuousBubble();
           }
-        }, 400);
+        }, 300);
       },
 
       createContinuousBubble: function () {
         const colorIndex = Math.floor(Math.random() * this.reactionColors.length);
         const bubble = document.createElement("a-sphere");
-        bubble.setAttribute("radius", "0.008");
+        bubble.setAttribute("radius", "0.01");
         bubble.setAttribute("color", this.reactionColors[colorIndex]);
-        bubble.setAttribute("opacity", "0.5");
+        bubble.setAttribute("opacity", "0.6");
         bubble.setAttribute("transparent", "true");
         
-        bubble.setAttribute("position", {
-          x: (Math.random() - 0.5) * 0.18,
-          y: 0.15 + Math.random() * 0.1,
-          z: (Math.random() - 0.5) * 0.18
-        });
+        const mixPos = this.getRandomMixingPosition();
+        bubble.setAttribute("position", mixPos);
         
         this.el.appendChild(bubble);
         
         // Animate and remove
         setTimeout(() => {
           if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
-        }, 2000);
+        }, 1500);
       },
 
       stopReaction: function () {
         this.isActive = false;
         reactionActive = false;
         
-        // Clear all particles
+        // Clear particles
         this.particles.forEach(particle => {
           if (particle.element.parentNode) {
             particle.element.parentNode.removeChild(particle.element);
@@ -502,59 +739,20 @@
         if (this.reactionLight && this.reactionLight.parentNode) {
           this.reactionLight.parentNode.removeChild(this.reactionLight);
         }
-        if (this.secondaryLight && this.secondaryLight.parentNode) {
-          this.secondaryLight.parentNode.removeChild(this.secondaryLight);
-        }
       }
     });
 
-    // TILT DETECTION FOR REACTION TRIGGER
-    AFRAME.registerComponent("reaction-trigger", {
-      init: function () {
-        window.addEventListener("deviceorientation", (event) => {
-          const tilt = event.beta || 0;
-          
-          document.getElementById("tilt-display").textContent = Math.round(tilt) + '°';
-          
-          // Trigger reaction when phone is tilted forward
-          if (tilt > tiltThreshold && tubeAVisible && tubeBVisible && !reactionTriggered) {
-            // Update UI to show ready for reaction
-            document.getElementById("experiment-status").textContent = "Tilt Detected - Ready";
-            document.getElementById("experiment-status").className = "status-badge ready";
-            
-            // Start countdown for reaction
-            if (!shakeTimer) {
-              shakeTimer = setTimeout(() => {
-                triggerChemicalReaction();
-                shakeTimer = null;
-              }, 800); // Reduced delay for instant reaction
-            }
-          } else {
-            // Reset if not tilted enough
-            if (shakeTimer) {
-              clearTimeout(shakeTimer);
-              shakeTimer = null;
-            }
-            if (!reactionTriggered) {
-              document.getElementById("experiment-status").textContent = "Ready for Reaction";
-              document.getElementById("experiment-status").className = "status-badge";
-            }
-          }
-        });
-      }
-    });
-
-    // Function to trigger the chemical reaction
+    // Function to trigger chemical reaction
     function triggerChemicalReaction() {
       if (reactionTriggered) return;
       
       reactionTriggered = true;
       
-      // Update status immediately
-      document.getElementById("experiment-status").textContent = "Reaction Triggered!";
-      document.getElementById("experiment-status").className = "status-badge active";
+      // Update UI
+      document.getElementById("experiment-status").textContent = "Mixing Reaction!";
+      document.getElementById("experiment-status").className = "status-badge reaction";
       
-      // Start the chemical reaction
+      // Start reaction on both tubes
       const tubeA = document.querySelector("#tubeA");
       if (tubeA && tubeA.components["chemical-reaction"]) {
         tubeA.components["chemical-reaction"].startChemicalReaction();
@@ -562,23 +760,32 @@
     }
 
     function updateStatus() {
-      if (reactionActive) {
-        return; // Don't update status during active reaction
-      }
+      if (reactionActive) return;
       
       const status = document.getElementById("experiment-status");
       if (tubeAVisible && tubeBVisible) {
-        status.textContent = "Ready for Reaction";
+        status.textContent = "Ready to Mix";
         status.className = "status-badge ready";
+        updateInteractionIndicator("Touch & drag one tube to another");
       } else if (tubeAVisible) {
         status.textContent = "Tube A Detected";
         status.className = "status-badge";
+        updateInteractionIndicator("Waiting for Tube B...");
       } else if (tubeBVisible) {
         status.textContent = "Tube B Detected";
         status.className = "status-badge";
+        updateInteractionIndicator("Waiting for Tube A...");
       } else {
-        status.textContent = "Awaiting Chemical Tubes";
+        status.textContent = "Awaiting Tubes";
         status.className = "status-badge";
+        updateInteractionIndicator("Scan both tube markers");
+      }
+    }
+
+    function updateInteractionIndicator(message) {
+      const indicator = document.querySelector(".interaction-indicator");
+      if (indicator) {
+        indicator.textContent = message;
       }
     }
 
@@ -586,11 +793,17 @@
     window.resetExperiment = function() {
       reactionTriggered = false;
       reactionActive = false;
+      isDragging = false;
+      draggedTube = null;
+      isMixing = false;
       
-      // Clear any pending timer
-      if (shakeTimer) {
-        clearTimeout(shakeTimer);
-        shakeTimer = null;
+      // Reset tube positions if they exist
+      if (tubeAElement && initialDragPosition) {
+        tubeAElement.object3D.position.set(
+          initialDragPosition.x,
+          initialDragPosition.y,
+          initialDragPosition.z
+        );
       }
       
       // Reset tube A
@@ -625,22 +838,29 @@
         liquidB.setAttribute('emissive-intensity', '0');
       }
       
+      // Remove glow effects
+      const glowA = document.querySelector(`#glow-A`);
+      const glowB = document.querySelector(`#glow-B`);
+      if (glowA) {
+        glowA.setAttribute("opacity", "0");
+        glowA.removeAttribute("animation");
+      }
+      if (glowB) {
+        glowB.setAttribute("opacity", "0");
+        glowB.removeAttribute("animation");
+      }
+      
       // Reset UI
-      document.getElementById("experiment-status").textContent = "Ready for Reaction";
+      document.getElementById("experiment-status").textContent = "Ready to Mix";
       document.getElementById("experiment-status").className = "status-badge ready";
-      document.getElementById("reaction-status").textContent = "Awaiting Trigger";
+      document.getElementById("reaction-status").textContent = "Awaiting Mixing";
       document.getElementById("reaction-status").className = "status-badge";
-      document.getElementById("tilt-display").textContent = "0°";
       document.getElementById("marker-a-status").textContent = "Not Found";
       document.getElementById("marker-a-status").className = "status-badge not-found";
       document.getElementById("marker-b-status").textContent = "Not Found";
       document.getElementById("marker-b-status").className = "status-badge not-found";
       
-      document.querySelector(".reaction-trigger").textContent = "⚗️ TILT TO REACT";
-      document.querySelector(".reaction-trigger").style.background = "rgba(159, 122, 234, 0.9)";
-      
-      // Reset HUD animation
-      document.getElementById("hud").style.animation = "";
+      updateInteractionIndicator("Scan both tube markers");
       
       updateStatus();
     };
@@ -652,16 +872,11 @@
 <body style="margin:0; overflow:hidden;">
   <!-- Professional HUD Display -->
   <div id="hud">
-    <h3>Chemical Reaction Experiment</h3>
+    <h3>Chemical Mixing Experiment</h3>
     
     <div class="status-item">
       <span class="status-label">Status:</span>
-      <span class="status-badge ready" id="experiment-status">Ready for Reaction</span>
-    </div>
-    
-    <div class="status-item">
-      <span class="status-label">Tilt Angle:</span>
-      <span class="status-value" id="tilt-display">0°</span>
+      <span class="status-badge ready" id="experiment-status">Ready to Mix</span>
     </div>
     
     <div class="status-item">
@@ -676,7 +891,7 @@
     
     <div class="status-item">
       <span class="status-label">Reaction State:</span>
-      <span class="status-badge" id="reaction-status">Awaiting Trigger</span>
+      <span class="status-badge" id="reaction-status">Awaiting Mixing</span>
     </div>
     
     <button onclick="resetExperiment()">
@@ -684,15 +899,16 @@
     </button>
   </div>
   
-  <!-- Reaction Trigger Indicator -->
-  <div class="reaction-trigger">
-    ⚗️ TILT TO REACT
+  <!-- Interaction Indicator -->
+  <div class="interaction-indicator">
+    Scan both tube markers
   </div>
 
   <a-scene
     embedded
     arjs="debugUIEnabled:false;"
-    device-orientation-permission-ui="enabled: true">
+    device-orientation-permission-ui="enabled: true"
+    touch-drag>
 
     <!-- Professional Lighting -->
     <a-light type="ambient" intensity="0.7" color="#e0e0e0"></a-light>
@@ -704,25 +920,25 @@
       url="markers/testtube_markerA.patt"
       marker-tracker="id: A">
 
-      <a-entity id="tubeA" reaction-trigger chemical-reaction="tubeId: A" position="0 0 0">
+      <a-entity id="tubeA" chemical-reaction="tubeId: A" position="0 0 0">
         <!-- Glass Tube -->
         <a-cylinder
-          radius="0.15"
-          height="0.55"
-          position="0 0.275 0"
+          radius="0.16"
+          height="0.6"
+          position="0 0.3 0"
           color="#f8f9fa"
-          opacity="0.15"
+          opacity="0.2"
           roughness="0.05"
-          metalness="0.9"
+          metalness="0.8"
           transparent="true">
         </a-cylinder>
 
         <!-- Chemical Solution A -->
         <a-cylinder
           id="liquidA"
-          radius="0.13"
-          height="0.4"
-          position="0 0.2 0"
+          radius="0.14"
+          height="0.45"
+          position="0 0.225 0"
           color="#339af0"
           opacity="0.95"
           roughness="0.1"
@@ -735,8 +951,8 @@
         <!-- Liquid surface -->
         <a-circle
           id="surfaceA"
-          radius="0.13"
-          position="0 0.4 0"
+          radius="0.14"
+          position="0 0.45 0"
           color="#339af0"
           opacity="0.95"
           rotation="-90 0 0"
@@ -756,22 +972,22 @@
       <a-entity id="tubeB" position="0 0 0">
         <!-- Glass Tube -->
         <a-cylinder
-          radius="0.15"
-          height="0.55"
-          position="0 0.275 0"
+          radius="0.16"
+          height="0.6"
+          position="0 0.3 0"
           color="#f8f9fa"
-          opacity="0.15"
+          opacity="0.2"
           roughness="0.05"
-          metalness="0.9"
+          metalness="0.8"
           transparent="true">
         </a-cylinder>
 
         <!-- Chemical Solution B -->
         <a-cylinder
           id="liquidB"
-          radius="0.13"
-          height="0.4"
-          position="0 0.2 0"
+          radius="0.14"
+          height="0.45"
+          position="0 0.225 0"
           color="#ffd43b"
           opacity="0.95"
           roughness="0.1"
@@ -784,8 +1000,8 @@
         <!-- Liquid surface -->
         <a-circle
           id="surfaceB"
-          radius="0.13"
-          position="0 0.4 0"
+          radius="0.14"
+          position="0 0.45 0"
           color="#ffd43b"
           opacity="0.95"
           rotation="-90 0 0"
@@ -801,7 +1017,12 @@
   </a-scene>
   
   <script>
-    // Update status
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      updateStatus();
+    });
+    
+    // Update status periodically
     setInterval(() => {
       if (!reactionActive) {
         updateStatus();
