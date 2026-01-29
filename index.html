@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Visible Drag & Liquid Transfer</title>
+  <title>AR Chemical Mixing – Working Drag & Liquid Transfer</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -47,7 +47,6 @@
       box-shadow: 0 4px 16px rgba(159, 122, 234, 0.3);
       text-align: center;
       max-width: 80%;
-      animation: pulse 2s infinite;
     }
     h3 {
       margin: 0 0 12px 0;
@@ -130,30 +129,27 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.7; }
     }
-    @keyframes dragGlow {
-      0%, 100% { box-shadow: 0 0 20px rgba(66, 153, 225, 0.5); }
-      50% { box-shadow: 0 0 40px rgba(66, 153, 225, 0.8); }
-    }
   </style>
 
   <script>
-    // Liquid levels
-    let levelA = 0.45; // Full blue liquid
-    let levelB = 0.45; // Full yellow liquid
+    // State variables
+    let tubeAVisible = false;
+    let tubeBVisible = false;
     let reactionTriggered = false;
     let isDragging = false;
     let draggedTube = null;
     let tubeAElement = null;
     let tubeBElement = null;
-    let mixingStream = null;
-    let transferParticles = [];
-    let tubeAVisible = false;
-    let tubeBVisible = false;
-    let mixDistance = 0.4; // Distance for mixing
-    
-    // Initial positions for reset
     let tubeAInitialPos = { x: 0, y: 0, z: 0 };
     let tubeBInitialPos = { x: 0, y: 0, z: 0 };
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+    let transferParticles = [];
+    let mixDistance = 0.4;
+    
+    // Liquid levels (full tubes)
+    let levelA = 0.45;
+    let levelB = 0.45;
 
     // MARKER TRACKING
     AFRAME.registerComponent("marker-tracker", {
@@ -204,12 +200,10 @@
       }
     });
 
-    // TOUCH DRAG SYSTEM WITH VISUAL FEEDBACK
-    AFRAME.registerComponent("visual-drag", {
+    // WORKING DRAG SYSTEM
+    AFRAME.registerComponent("working-drag", {
       init: function () {
         const scene = this.el.sceneEl;
-        let lastTouchX = 0;
-        let lastTouchY = 0;
         
         // Handle touch start
         scene.addEventListener("touchstart", (e) => {
@@ -220,8 +214,8 @@
           lastTouchX = touch.clientX;
           lastTouchY = touch.clientY;
           
-          // Determine which tube is closer to touch
-          this.startDrag(touch.clientX, touch.clientY);
+          // Start dragging Tube A
+          this.startDragTubeA();
         });
         
         // Handle touch move
@@ -235,13 +229,13 @@
           lastTouchX = touch.clientX;
           lastTouchY = touch.clientY;
           
-          // Move the dragged tube
-          this.moveDraggedTube(deltaX * 0.003, -deltaY * 0.003);
+          // Convert screen movement to 3D movement
+          this.moveDraggedTube(deltaX, deltaY);
           
-          // Update liquid stream visualization
-          this.updateLiquidStream();
+          // Create liquid transfer effect
+          this.createLiquidTransfer();
           
-          // Check if tubes are close enough for mixing
+          // Check mixing proximity
           this.checkMixingProximity();
         });
         
@@ -249,9 +243,9 @@
         scene.addEventListener("touchend", (e) => {
           if (!isDragging) return;
           
-          if (this.isMixingDistance()) {
-            // Complete the mixing
-            this.completeMixing();
+          if (this.checkMixingDistance()) {
+            // Trigger reaction
+            triggerChemicalReaction();
           } else {
             // Return to original position
             this.returnToOriginalPosition();
@@ -261,51 +255,50 @@
         });
       },
       
-      startDrag: function(touchX, touchY) {
-        // For simplicity, always drag Tube A
+      startDragTubeA: function() {
         if (!tubeAElement) return;
         
         draggedTube = tubeAElement;
         isDragging = true;
         
-        // Add visual feedback for dragging
+        // Add drag visual effect
         this.addDragVisuals();
         
         updateStatus();
-        updateInteractionIndicator("Drag Tube A over Tube B to mix");
+        updateInteractionIndicator("Dragging Tube A... Move it over Tube B");
       },
       
       addDragVisuals: function() {
-        // Create drag effect on tube
-        const dragEffect = document.createElement("a-ring");
-        dragEffect.setAttribute("radius-inner", "0.16");
-        dragEffect.setAttribute("radius-outer", "0.18");
-        dragEffect.setAttribute("position", "0 0.3 0");
-        dragEffect.setAttribute("rotation", "-90 0 0");
-        dragEffect.setAttribute("color", "#4299e1");
-        dragEffect.setAttribute("opacity", "0.7");
-        dragEffect.setAttribute("id", "drag-effect");
-        dragEffect.setAttribute("animation", "property: opacity; from: 0.7; to: 0.3; dur: 800; loop: true");
-        draggedTube.appendChild(dragEffect);
-        
-        // Create liquid stream placeholder
-        mixingStream = document.createElement("a-entity");
-        mixingStream.setAttribute("id", "liquid-stream");
-        draggedTube.appendChild(mixingStream);
+        // Create a glowing ring around the dragged tube
+        const dragRing = document.createElement("a-ring");
+        dragRing.setAttribute("radius-inner", "0.18");
+        dragRing.setAttribute("radius-outer", "0.2");
+        dragRing.setAttribute("position", "0 0.3 0");
+        dragRing.setAttribute("rotation", "-90 0 0");
+        dragRing.setAttribute("color", "#4299e1");
+        dragRing.setAttribute("opacity", "0.7");
+        dragRing.setAttribute("id", "drag-ring");
+        dragRing.setAttribute("animation", "property: opacity; from: 0.7; to: 0.3; dur: 800; loop: true");
+        draggedTube.appendChild(dragRing);
       },
       
       moveDraggedTube: function(deltaX, deltaY) {
         if (!draggedTube) return;
         
         const currentPos = draggedTube.object3D.position;
-        draggedTube.object3D.position.set(
-          currentPos.x + deltaX,
-          currentPos.y,
-          currentPos.z + deltaY
-        );
         
-        // Tilt the tube while dragging
-        const tiltAngle = Math.min(30, Math.sqrt(deltaX * deltaX + deltaY * deltaY) * 50);
+        // Move in camera-relative space
+        // Convert screen delta to world movement (simplified)
+        const moveScale = 0.002;
+        const newX = currentPos.x + deltaX * moveScale;
+        const newZ = currentPos.z - deltaY * moveScale;
+        
+        // Update position
+        draggedTube.object3D.position.set(newX, currentPos.y, newZ);
+        
+        // Tilt the tube based on movement speed
+        const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        const tiltAngle = Math.min(25, speed * 0.2);
         draggedTube.setAttribute('rotation', {
           x: -tiltAngle,
           y: 0,
@@ -313,76 +306,63 @@
         });
       },
       
-      updateLiquidStream: function() {
+      createLiquidTransfer: function() {
         if (!tubeAElement || !tubeBElement) return;
         
-        // Clear previous stream
-        this.clearLiquidStream();
+        // Clear old particles
+        this.clearOldParticles();
         
-        // Create liquid stream particles from Tube A to Tube B
-        if (this.isMixingDistance()) {
-          this.createLiquidTransfer();
+        // Create droplets if tubes are close
+        if (this.checkMixingDistance()) {
+          const posA = tubeAElement.object3D.position;
+          const posB = tubeBElement.object3D.position;
+          
+          // Create 1-3 droplets per movement
+          const dropletCount = Math.floor(Math.random() * 3) + 1;
+          for (let i = 0; i < dropletCount; i++) {
+            this.createDroplet(posA, posB);
+          }
         }
       },
       
-      createLiquidTransfer: function() {
-        const posA = tubeAElement.object3D.position;
-        const posB = tubeBElement.object3D.position;
-        
-        // Calculate direction vector
-        const dirX = posB.x - posA.x;
-        const dirZ = posB.z - posA.z;
-        const distance = Math.sqrt(dirX * dirX + dirZ * dirZ);
-        
-        if (distance > 0.5) return; // Too far
-        
-        // Create multiple droplets along the path
-        for (let i = 0; i < 3; i++) {
-          setTimeout(() => {
-            this.createDroplet(posA, posB, i);
-          }, i * 100);
-        }
-      },
-      
-      createDroplet: function(fromPos, toPos, index) {
+      createDroplet: function(fromPos, toPos) {
         const droplet = document.createElement("a-sphere");
         droplet.setAttribute("radius", "0.02");
         droplet.setAttribute("color", "#339af0");
         droplet.setAttribute("opacity", "0.9");
         
-        // Start position (from tube A)
+        // Start from Tube A position
         droplet.setAttribute("position", {
-          x: fromPos.x,
+          x: fromPos.x + (Math.random() - 0.5) * 0.05,
           y: fromPos.y + 0.2,
-          z: fromPos.z
+          z: fromPos.z + (Math.random() - 0.5) * 0.05
         });
         
         droplet.setAttribute("light", {
           type: "point",
           color: "#339af0",
-          intensity: 0.5,
-          distance: 0.3
+          intensity: 0.4,
+          distance: 0.2
         });
         
-        // Add to scene
         const scene = document.querySelector("a-scene");
         scene.appendChild(droplet);
         
         transferParticles.push({
           element: droplet,
           startTime: Date.now(),
-          fromPos: { ...fromPos },
-          toPos: { ...toPos }
+          fromPos: { x: fromPos.x, y: fromPos.y, z: fromPos.z },
+          toPos: { x: toPos.x, y: toPos.y, z: toPos.z }
         });
       },
       
-      clearLiquidStream: function() {
-        // Remove old droplets that have completed animation
+      clearOldParticles: function() {
+        // Remove particles older than 1.5 seconds
         for (let i = transferParticles.length - 1; i >= 0; i--) {
           const particle = transferParticles[i];
-          const elapsed = Date.now() - particle.startTime;
+          const age = Date.now() - particle.startTime;
           
-          if (elapsed > 1000) {
+          if (age > 1500) {
             if (particle.element.parentNode) {
               particle.element.parentNode.removeChild(particle.element);
             }
@@ -391,7 +371,7 @@
         }
       },
       
-      isMixingDistance: function() {
+      checkMixingDistance: function() {
         if (!tubeAElement || !tubeBElement) return false;
         
         const posA = tubeAElement.object3D.position;
@@ -406,21 +386,21 @@
       },
       
       checkMixingProximity: function() {
-        const isClose = this.isMixingDistance();
+        const isClose = this.checkMixingDistance();
         
         if (isClose) {
-          document.getElementById("experiment-status").textContent = "Mixing Distance ✓";
+          document.getElementById("experiment-status").textContent = "Close to Tube B ✓";
           document.getElementById("experiment-status").className = "status-badge mixing";
           
-          // Make tube B glow
+          // Make Tube B glow
           const tubeBGlow = document.querySelector("#tubeB-glow");
           if (tubeBGlow) {
             tubeBGlow.setAttribute("opacity", "0.6");
             tubeBGlow.setAttribute("color", "#f59e0b");
           }
         } else {
-          document.getElementById("experiment-status").textContent = "Drag to Mix";
-          document.getElementById("experiment-status").className = "status-badge ready";
+          document.getElementById("experiment-status").textContent = "Dragging Tube A";
+          document.getElementById("experiment-status").className = "status-badge active";
           
           const tubeBGlow = document.querySelector("#tubeB-glow");
           if (tubeBGlow) {
@@ -429,47 +409,36 @@
         }
       },
       
-      completeMixing: function() {
-        reactionTriggered = true;
-        
-        // Start chemical reaction
-        triggerChemicalReaction();
-        
-        // Visual feedback
-        document.getElementById("experiment-status").textContent = "Mixing Reaction!";
-        document.getElementById("experiment-status").className = "status-badge reaction";
-      },
-      
       returnToOriginalPosition: function() {
         if (!draggedTube) return;
         
-        // Animate back to original position
         const currentPos = draggedTube.object3D.position;
         const targetPos = tubeAInitialPos;
         
-        const animateReturn = (progress = 0) => {
+        // Animate back to original position
+        const animateBack = (progress = 0) => {
           progress += 0.1;
           const t = Math.min(1, progress);
           
-          // Easing function
+          // Smooth easing
           const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
           
-          currentPos.x = targetPos.x + (currentPos.x - targetPos.x) * (1 - ease);
-          currentPos.z = targetPos.z + (currentPos.z - targetPos.z) * (1 - ease);
+          currentPos.x = currentPos.x + (targetPos.x - currentPos.x) * ease;
+          currentPos.z = currentPos.z + (targetPos.z - currentPos.z) * ease;
           
           // Return rotation to upright
           draggedTube.setAttribute('rotation', {
-            x: -30 * (1 - ease),
+            x: -25 * (1 - ease),
             y: 0,
             z: 0
           });
           
           if (t < 1) {
-            requestAnimationFrame(() => animateReturn(progress));
+            requestAnimationFrame(() => animateBack(progress));
           }
         };
         
-        animateReturn();
+        animateBack();
       },
       
       endDrag: function() {
@@ -477,25 +446,12 @@
         draggedTube = null;
         
         // Remove drag visuals
-        const dragEffect = document.querySelector("#drag-effect");
-        if (dragEffect && dragEffect.parentNode) {
-          dragEffect.parentNode.removeChild(dragEffect);
+        const dragRing = document.querySelector("#drag-ring");
+        if (dragRing && dragRing.parentNode) {
+          dragRing.parentNode.removeChild(dragRing);
         }
         
-        const liquidStream = document.querySelector("#liquid-stream");
-        if (liquidStream && liquidStream.parentNode) {
-          liquidStream.parentNode.removeChild(liquidStream);
-        }
-        
-        // Clear all transfer particles
-        transferParticles.forEach(particle => {
-          if (particle.element.parentNode) {
-            particle.element.parentNode.removeChild(particle.element);
-          }
-        });
-        transferParticles = [];
-        
-        // Reset tube B glow
+        // Reset Tube B glow
         const tubeBGlow = document.querySelector("#tubeB-glow");
         if (tubeBGlow) {
           tubeBGlow.setAttribute("opacity", "0");
@@ -508,14 +464,14 @@
       }
     });
 
-    // LIQUID TRANSFER ANIMATION SYSTEM
-    AFRAME.registerComponent("liquid-animator", {
+    // PARTICLE ANIMATION SYSTEM
+    AFRAME.registerComponent("particle-animator", {
       tick: function () {
         // Animate transfer particles
         for (let i = transferParticles.length - 1; i >= 0; i--) {
           const particle = transferParticles[i];
-          const elapsed = Date.now() - particle.startTime;
-          const progress = Math.min(1, elapsed / 1000);
+          const age = Date.now() - particle.startTime;
+          const progress = Math.min(1, age / 1000);
           
           if (progress >= 1) {
             if (particle.element.parentNode) {
@@ -525,44 +481,40 @@
             continue;
           }
           
-          // Animate droplet along path
+          // Calculate position along arc path
           const x = particle.fromPos.x + (particle.toPos.x - particle.fromPos.x) * progress;
-          const y = particle.fromPos.y + 0.2 + Math.sin(progress * Math.PI) * 0.3; // Arc motion
           const z = particle.fromPos.z + (particle.toPos.z - particle.fromPos.z) * progress;
+          
+          // Arc height
+          const arcHeight = 0.3;
+          const y = particle.fromPos.y + 0.2 + Math.sin(progress * Math.PI) * arcHeight;
           
           particle.element.setAttribute("position", { x, y, z });
           
-          // Make droplet smaller as it travels
-          const scale = 0.02 * (1 - progress * 0.5);
-          particle.element.setAttribute("radius", scale.toString());
+          // Shrink droplet as it travels
+          const scale = 0.02 * (1 - progress * 0.3);
+          particle.element.setAttribute("radius", scale);
         }
       }
     });
 
     // CHEMICAL REACTION SYSTEM
     AFRAME.registerComponent("chemical-reaction", {
-      schema: {
-        tubeId: { type: "string" }
-      },
-
       init: function () {
         this.reactionTime = 0;
         this.isActive = false;
-        this.particles = [];
-        
-        this.reactionColors = [
-          '#339af0', '#ffd43b', '#40c057', '#fa5252',
-          '#be4bdb', '#15aabf', '#fd7e14', '#7950f2'
-        ];
+        this.reactionColors = ['#339af0', '#ffd43b', '#40c057', '#fa5252'];
       },
 
       tick: function () {
         if (this.isActive) {
           this.reactionTime += 0.05;
           
-          // Animate mixing reaction
-          this.updateMixingAnimation();
-          this.updateParticles();
+          // Animate tubes
+          this.animateTubes();
+          
+          // Update colors
+          this.updateColors();
         }
       },
 
@@ -570,7 +522,7 @@
         this.isActive = true;
         this.reactionTime = 0;
         
-        // Bring tubes together
+        // Move tubes together
         this.moveTubesTogether();
         
         // Create mixing effects
@@ -580,9 +532,9 @@
         this.startColorTransition();
         
         // Update UI
-        document.getElementById("reaction-status").textContent = "Chemical Reaction Active";
+        document.getElementById("reaction-status").textContent = "Chemical Mixing!";
         document.getElementById("reaction-status").className = "status-badge reaction";
-        updateInteractionIndicator("⚗️ Chemical Mixing in Progress!");
+        updateInteractionIndicator("⚗️ Chemical Reaction in Progress!");
       },
 
       moveTubesTogether: function () {
@@ -595,20 +547,21 @@
         const midX = (posA.x + posB.x) / 2;
         const midZ = (posA.z + posB.z) / 2;
         
-        // Animate tubes to meet
+        // Animate both tubes to meet in the middle
         const animateTogether = (progress = 0) => {
           progress += 0.05;
           const t = Math.min(1, progress);
           
-          posA.x += (midX - posA.x) * 0.2;
-          posA.z += (midZ - posA.z) * 0.2;
-          posB.x += (midX - posB.x) * 0.2;
-          posB.z += (midZ - posB.z) * 0.2;
+          // Smooth movement to midpoint
+          posA.x = posA.x + (midX - posA.x) * 0.1;
+          posA.z = posA.z + (midZ - posA.z) * 0.1;
+          posB.x = posB.x + (midX - posB.x) * 0.1;
+          posB.z = posB.z + (midZ - posB.z) * 0.1;
           
           // Tilt tubes toward each other
-          const tilt = Math.sin(this.reactionTime * 2) * 10;
-          tubeAElement.setAttribute('rotation', { x: tilt, y: 0, z: 0 });
-          tubeBElement.setAttribute('rotation', { x: -tilt, y: 0, z: 0 });
+          const tilt = Math.sin(this.reactionTime * 2) * 15;
+          tubeAElement.setAttribute('rotation', { x: tilt, y: this.reactionTime * 10, z: 0 });
+          tubeBElement.setAttribute('rotation', { x: -tilt, y: -this.reactionTime * 10, z: 0 });
           
           if (t < 1) {
             requestAnimationFrame(() => animateTogether(progress));
@@ -620,19 +573,19 @@
 
       createMixingEffects: function () {
         // Create bubble explosion
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 30; i++) {
           setTimeout(() => {
-            this.createMixingBubble(i);
-          }, i * 20);
+            this.createBubble();
+          }, i * 30);
         }
         
-        // Create mixing stream between tubes
-        this.createMixingStream();
+        // Create connection effect
+        this.createConnection();
       },
 
-      createMixingBubble: function (index) {
-        const colorIndex = index % this.reactionColors.length;
+      createBubble: function () {
         const bubble = document.createElement("a-sphere");
+        const colorIndex = Math.floor(Math.random() * this.reactionColors.length);
         bubble.setAttribute("radius", "0.015");
         bubble.setAttribute("color", this.reactionColors[colorIndex]);
         bubble.setAttribute("opacity", "0.8");
@@ -640,97 +593,89 @@
         if (tubeAElement) {
           const pos = tubeAElement.object3D.position;
           bubble.setAttribute("position", {
-            x: pos.x + (Math.random() - 0.5) * 0.2,
+            x: pos.x + (Math.random() - 0.5) * 0.25,
             y: pos.y + 0.3,
-            z: pos.z + (Math.random() - 0.5) * 0.2
+            z: pos.z + (Math.random() - 0.5) * 0.25
           });
         }
         
         bubble.setAttribute("light", {
           type: "point",
           color: this.reactionColors[colorIndex],
-          intensity: 0.4,
-          distance: 0.2
+          intensity: 0.5,
+          distance: 0.25
         });
         
         const scene = document.querySelector("a-scene");
         scene.appendChild(bubble);
         
-        this.particles.push({
-          element: bubble,
-          velocity: {
-            x: (Math.random() - 0.5) * 0.01,
-            y: 0.008 + Math.random() * 0.004,
-            z: (Math.random() - 0.5) * 0.01
-          },
-          life: 100 + Math.random() * 50
-        });
+        // Remove after 3 seconds
+        setTimeout(() => {
+          if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+        }, 3000);
       },
 
-      createMixingStream: function () {
+      createConnection: function () {
         if (!tubeAElement || !tubeBElement) return;
         
-        // Create multiple connections
-        for (let i = 0; i < 5; i++) {
-          const stream = document.createElement("a-cylinder");
-          stream.setAttribute("radius", "0.01");
-          stream.setAttribute("height", "0.5");
-          stream.setAttribute("color", "#4dabf7");
-          stream.setAttribute("opacity", "0.6");
-          
-          const posA = tubeAElement.object3D.position;
-          const posB = tubeBElement.object3D.position;
-          const midX = (posA.x + posB.x) / 2;
-          const midY = (posA.y + posB.y) / 2;
-          const midZ = (posA.z + posB.z) / 2;
-          
-          // Position between tubes with slight variation
-          stream.setAttribute("position", {
-            x: midX + (Math.random() - 0.5) * 0.05,
-            y: midY,
-            z: midZ + (Math.random() - 0.5) * 0.05
-          });
-          
-          // Rotate to connect tubes
-          const dx = posB.x - posA.x;
-          const dz = posB.z - posA.z;
-          const rotationY = Math.atan2(dz, dx) * (180 / Math.PI);
-          stream.setAttribute("rotation", `0 ${rotationY} 0`);
-          
-          const scene = document.querySelector("a-scene");
-          scene.appendChild(stream);
-          
-          // Remove after animation
-          setTimeout(() => {
-            if (stream.parentNode) stream.parentNode.removeChild(stream);
-          }, 1000);
-        }
+        const connection = document.createElement("a-cylinder");
+        connection.setAttribute("radius", "0.015");
+        connection.setAttribute("height", "0.5");
+        connection.setAttribute("color", "#4dabf7");
+        connection.setAttribute("opacity", "0.7");
+        
+        const posA = tubeAElement.object3D.position;
+        const posB = tubeBElement.object3D.position;
+        const midX = (posA.x + posB.x) / 2;
+        const midY = (posA.y + posB.y) / 2;
+        const midZ = (posA.z + posB.z) / 2;
+        
+        connection.setAttribute("position", { x: midX, y: midY, z: midZ });
+        
+        // Rotate to connect tubes
+        const dx = posB.x - posA.x;
+        const dz = posB.z - posA.z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        const rotationY = Math.atan2(dz, dx) * (180 / Math.PI);
+        
+        connection.setAttribute("rotation", `0 ${rotationY} 0`);
+        connection.setAttribute("height", distance);
+        
+        const scene = document.querySelector("a-scene");
+        scene.appendChild(connection);
+        
+        // Remove after animation
+        setTimeout(() => {
+          if (connection.parentNode) connection.parentNode.removeChild(connection);
+        }, 1500);
       },
 
       startColorTransition: function () {
-        // Start blending liquid colors
         const liquidA = document.querySelector("#liquidA");
         const liquidB = document.querySelector("#liquidB");
         
         if (liquidA && liquidB) {
+          // Transition from blue/yellow to green
           const interval = setInterval(() => {
             if (!this.isActive) {
               clearInterval(interval);
               return;
             }
             
-            // Transition from blue to green (mixing result)
-            const progress = Math.min(1, this.reactionTime * 0.1);
-            const r = Math.floor(51 + (34 * progress));
-            const g = Math.floor(154 + (205 * progress));
-            const b = Math.floor(240 + (28 * progress));
+            const progress = Math.min(1, this.reactionTime * 0.08);
             
-            liquidA.setAttribute('color', `rgb(${r}, ${g}, ${b})`);
-            liquidB.setAttribute('color', `rgb(${r}, ${g}, ${b})`);
+            // Blue (51, 154, 240) to Green (34, 197, 94)
+            const r = Math.floor(51 + (34 - 51) * progress);
+            const g = Math.floor(154 + (197 - 154) * progress);
+            const b = Math.floor(240 + (94 - 240) * progress);
+            
+            const color = `rgb(${r}, ${g}, ${b})`;
+            liquidA.setAttribute('color', color);
+            liquidB.setAttribute('color', color);
             
             // Add glow
-            liquidA.setAttribute('emissive', `rgb(${r}, ${g}, ${b})`);
-            liquidB.setAttribute('emissive', `rgb(${r}, ${g}, ${b})`);
+            liquidA.setAttribute('emissive', color);
+            liquidB.setAttribute('emissive', color);
             liquidA.setAttribute('emissive-intensity', 0.3 + Math.sin(this.reactionTime * 3) * 0.2);
             liquidB.setAttribute('emissive-intensity', 0.3 + Math.sin(this.reactionTime * 3) * 0.2);
             
@@ -741,71 +686,42 @@
         }
       },
 
-      updateMixingAnimation: function () {
+      animateTubes: function () {
         if (!tubeAElement || !tubeBElement) return;
         
         // Gentle mixing motion
-        const mixMotion = Math.sin(this.reactionTime * 2) * 8;
-        const floatMotion = Math.sin(this.reactionTime) * 0.02;
+        const floatY = Math.sin(this.reactionTime) * 0.02;
         
-        tubeAElement.setAttribute('rotation', {
-          x: mixMotion,
-          y: this.reactionTime * 5,
-          z: 0
-        });
-        
-        tubeBElement.setAttribute('rotation', {
-          x: -mixMotion,
-          y: -this.reactionTime * 5,
-          z: 0
-        });
-        
-        // Gentle floating
         const posA = tubeAElement.object3D.position;
         const posB = tubeBElement.object3D.position;
-        posA.y = tubeAInitialPos.y + floatMotion;
-        posB.y = tubeBInitialPos.y + floatMotion;
+        posA.y = tubeAInitialPos.y + floatY;
+        posB.y = tubeBInitialPos.y + floatY;
       },
 
-      updateParticles: function () {
-        for (let i = this.particles.length - 1; i >= 0; i--) {
-          const particle = this.particles[i];
-          particle.life--;
-          
-          if (particle.life <= 0) {
-            if (particle.element.parentNode) {
-              particle.element.parentNode.removeChild(particle.element);
-            }
-            this.particles.splice(i, 1);
-            continue;
-          }
-          
-          const pos = particle.element.getAttribute('position');
-          particle.element.setAttribute('position', {
-            x: pos.x + particle.velocity.x,
-            y: pos.y + particle.velocity.y,
-            z: pos.z + particle.velocity.z
-          });
-          
-          const opacity = Math.min(1, particle.life / 50) * 0.8;
-          particle.element.setAttribute('opacity', opacity);
-        }
+      updateColors: function () {
+        // Already handled by interval
       },
 
       stopReaction: function () {
         this.isActive = false;
-        
-        this.particles.forEach(particle => {
-          if (particle.element.parentNode) {
-            particle.element.parentNode.removeChild(particle.element);
-          }
-        });
-        this.particles = [];
       }
     });
 
     // Function to trigger chemical reaction
     function triggerChemicalReaction() {
+      if (reactionTriggered) return;
+      
+      reactionTriggered = true;
+      
+      // Clear transfer particles
+      transferParticles.forEach(particle => {
+        if (particle.element.parentNode) {
+          particle.element.parentNode.removeChild(particle.element);
+        }
+      });
+      transferParticles = [];
+      
+      // Start reaction
       const tubeA = document.querySelector("#tubeA");
       if (tubeA && tubeA.components["chemical-reaction"]) {
         tubeA.components["chemical-reaction"].startReaction();
@@ -818,7 +734,7 @@
       const status = document.getElementById("experiment-status");
       if (tubeAVisible && tubeBVisible) {
         if (isDragging) {
-          status.textContent = "Dragging...";
+          status.textContent = "Dragging Tube A";
           status.className = "status-badge active";
         } else {
           status.textContent = "Ready to Mix";
@@ -843,6 +759,13 @@
       const indicator = document.querySelector(".interaction-indicator");
       if (indicator) {
         indicator.textContent = message;
+        if (message.includes("Dragging")) {
+          indicator.style.background = "rgba(66, 153, 225, 0.9)";
+        } else if (message.includes("Reaction")) {
+          indicator.style.background = "rgba(245, 158, 11, 0.9)";
+        } else {
+          indicator.style.background = "rgba(159, 122, 234, 0.9)";
+        }
       }
     }
 
@@ -851,10 +774,6 @@
       reactionTriggered = false;
       isDragging = false;
       draggedTube = null;
-      
-      // Reset liquid levels
-      levelA = 0.45;
-      levelB = 0.45;
       
       // Reset tube positions
       if (tubeAElement) {
@@ -872,7 +791,7 @@
         tubeA.components["chemical-reaction"].stopReaction();
       }
       
-      // Clear transfer particles
+      // Clear particles
       transferParticles.forEach(particle => {
         if (particle.element.parentNode) {
           particle.element.parentNode.removeChild(particle.element);
@@ -948,8 +867,8 @@
     embedded
     arjs="debugUIEnabled:false;"
     device-orientation-permission-ui="enabled: true"
-    visual-drag
-    liquid-animator>
+    working-drag
+    particle-animator>
 
     <!-- Professional Lighting -->
     <a-light type="ambient" intensity="0.7" color="#e0e0e0"></a-light>
@@ -961,7 +880,7 @@
       url="markers/testtube_markerA.patt"
       marker-tracker="id: A">
 
-      <a-entity id="tubeA" chemical-reaction="tubeId: A" position="0 0 0">
+      <a-entity id="tubeA" chemical-reaction position="0 0 0">
         <!-- Glass Tube -->
         <a-cylinder
           radius="0.16"
@@ -974,7 +893,7 @@
           transparent="true">
         </a-cylinder>
 
-        <!-- Chemical Solution A - FULL -->
+        <!-- Chemical Solution A -->
         <a-cylinder
           id="liquidA"
           radius="0.14"
@@ -1023,7 +942,7 @@
           transparent="true">
         </a-cylinder>
 
-        <!-- Chemical Solution B - FULL -->
+        <!-- Chemical Solution B -->
         <a-cylinder
           id="liquidB"
           radius="0.14"
@@ -1049,7 +968,7 @@
           transparent="true">
         </a-circle>
 
-        <!-- Glow effect for proximity detection -->
+        <!-- Glow effect for proximity -->
         <a-ring
           id="tubeB-glow"
           radius-inner="0.18"
@@ -1075,7 +994,7 @@
       updateStatus();
     });
     
-    // Update status and animate particles
+    // Update status
     setInterval(() => {
       if (!reactionTriggered) {
         updateStatus();
