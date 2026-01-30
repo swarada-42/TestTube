@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Blue + Yellow = Green Reaction</title>
+  <title>AR Chemical Mixing – Simple Drag & Reaction</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -14,848 +14,465 @@
     body {
       margin: 0;
       overflow: hidden;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: Arial, sans-serif;
       touch-action: none;
     }
     #hud {
       position: absolute;
-      top: 15px;
-      left: 15px;
-      background: rgba(20, 30, 48, 0.9);
-      color: #e0e0e0;
-      padding: 15px;
-      border-radius: 12px;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 10px;
+      border-radius: 10px;
       z-index: 1000;
-      max-width: 320px;
-      backdrop-filter: blur(5px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      max-width: 80%;
     }
     .interaction-indicator {
       position: absolute;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(159, 122, 234, 0.9);
+      background: rgba(0, 100, 200, 0.9);
       color: white;
-      padding: 12px 24px;
-      border-radius: 12px;
+      padding: 10px 20px;
+      border-radius: 10px;
       z-index: 1000;
-      font-weight: 600;
-      backdrop-filter: blur(5px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 4px 16px rgba(159, 122, 234, 0.3);
       text-align: center;
-      max-width: 80%;
-    }
-    h3 {
-      margin: 0 0 12px 0;
-      color: #4dabf7;
-      font-weight: 600;
-      font-size: 18px;
-      border-bottom: 1px solid rgba(77, 171, 247, 0.3);
-      padding-bottom: 8px;
-    }
-    .status-label {
-      color: #a0aec0;
-      font-size: 13px;
-      margin-right: 5px;
-    }
-    .status-value {
-      color: #ffffff;
-      font-weight: 500;
-      font-size: 13px;
-    }
-    .status-item {
-      margin: 6px 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .status-badge {
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .found {
-      background: rgba(72, 187, 120, 0.2);
-      color: #48bb78;
-    }
-    .not-found {
-      background: rgba(245, 101, 101, 0.2);
-      color: #f56565;
-    }
-    .ready {
-      background: rgba(66, 153, 225, 0.2);
-      color: #4299e1;
-    }
-    .active {
-      background: rgba(159, 122, 234, 0.2);
-      color: #9f7aea;
-      animation: pulse 1s infinite;
-    }
-    .mixing {
-      background: rgba(245, 158, 11, 0.2);
-      color: #f59e0b;
-      animation: pulse 0.8s infinite;
-    }
-    .reaction {
-      background: rgba(72, 187, 120, 0.2);
-      color: #48bb78;
-      animation: pulse 0.5s infinite;
+      max-width: 90%;
     }
     button {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #4CAF50;
       color: white;
       border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
+      padding: 8px 16px;
+      border-radius: 5px;
       cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-      transition: all 0.3s ease;
-      width: 100%;
-      margin-top: 10px;
+      margin-top: 5px;
     }
     button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-    }
-    button:active {
-      transform: translateY(0);
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
+      background: #45a049;
     }
   </style>
 
   <script>
-    // State variables
+    // Simple state management
     let tubeAVisible = false;
     let tubeBVisible = false;
-    let reactionTriggered = false;
     let isDragging = false;
-    let draggedTube = null;
+    let reactionStarted = false;
     let tubeAElement = null;
     let tubeBElement = null;
-    let tubeAInitialPos = { x: 0, y: 0, z: 0 };
-    let tubeBInitialPos = { x: 0, y: 0, z: 0 };
-    let lastTouchX = 0;
-    let lastTouchY = 0;
-    let transferParticles = [];
-    let mixDistance = 0.4;
-    let reactionActive = false;
+    
+    // Simple drag tracking
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let tubeAStartPos = { x: 0, y: 0, z: 0 };
 
-    // MARKER TRACKING
-    AFRAME.registerComponent("marker-tracker", {
-      schema: { id: { type: "string" } },
-
-      init() {
-        this.el.addEventListener("markerFound", () => {
-          if (this.data.id === "A") {
+    // MARKER TRACKING - SIMPLE
+    document.addEventListener('DOMContentLoaded', function() {
+      // Wait for A-Frame to load
+      setTimeout(() => {
+        const scene = document.querySelector('a-scene');
+        
+        // Listen for marker found events
+        scene.addEventListener('markerFound', function(e) {
+          const markerId = e.target.id;
+          console.log('Marker found:', markerId);
+          
+          if (markerId === 'markerA') {
             tubeAVisible = true;
-            tubeAElement = this.el;
-            tubeAInitialPos = {
-              x: this.el.object3D.position.x,
-              y: this.el.object3D.position.y,
-              z: this.el.object3D.position.z
-            };
-            document.getElementById("marker-a-status").textContent = "Detected";
-            document.getElementById("marker-a-status").className = "status-badge found";
+            tubeAElement = document.querySelector('#tubeA');
+            document.getElementById('marker-a-status').textContent = '✅ Found';
+            updateStatus();
           }
-          if (this.data.id === "B") {
+          if (markerId === 'markerB') {
             tubeBVisible = true;
-            tubeBElement = this.el;
-            tubeBInitialPos = {
-              x: this.el.object3D.position.x,
-              y: this.el.object3D.position.y,
-              z: this.el.object3D.position.z
-            };
-            document.getElementById("marker-b-status").textContent = "Detected";
-            document.getElementById("marker-b-status").className = "status-badge found";
+            tubeBElement = document.querySelector('#tubeB');
+            document.getElementById('marker-b-status').textContent = '✅ Found';
+            updateStatus();
           }
-          updateStatus();
         });
 
-        this.el.addEventListener("markerLost", () => {
-          if (this.data.id === "A") {
+        scene.addEventListener('markerLost', function(e) {
+          const markerId = e.target.id;
+          console.log('Marker lost:', markerId);
+          
+          if (markerId === 'markerA') {
             tubeAVisible = false;
             tubeAElement = null;
-            document.getElementById("marker-a-status").textContent = "Not Found";
-            document.getElementById("marker-a-status").className = "status-badge not-found";
+            document.getElementById('marker-a-status').textContent = '❌ Not found';
+            updateStatus();
           }
-          if (this.data.id === "B") {
+          if (markerId === 'markerB') {
             tubeBVisible = false;
             tubeBElement = null;
-            document.getElementById("marker-b-status").textContent = "Not Found";
-            document.getElementById("marker-b-status").className = "status-badge not-found";
+            document.getElementById('marker-b-status').textContent = '❌ Not found';
+            updateStatus();
           }
+        });
+        
+        // SIMPLE TOUCH DRAG
+        scene.addEventListener('touchstart', function(e) {
+          if (!tubeAVisible || !tubeBVisible || reactionStarted) return;
+          
+          e.preventDefault();
+          const touch = e.touches[0];
+          touchStartX = touch.clientX;
+          touchStartY = touch.clientY;
+          
+          // Store tube A position
+          if (tubeAElement && tubeAElement.object3D) {
+            const pos = tubeAElement.object3D.position;
+            tubeAStartPos = { x: pos.x, y: pos.y, z: pos.z };
+          }
+          
+          isDragging = true;
           updateStatus();
+          updateInteraction('Dragging Blue Tube... Move it over Yellow Tube');
         });
-      }
-    });
-
-    // DRAG SYSTEM
-    AFRAME.registerComponent("drag-system", {
-      init: function () {
-        const scene = this.el.sceneEl;
         
-        scene.addEventListener("touchstart", (e) => {
-          if (!tubeAVisible || !tubeBVisible || reactionTriggered) return;
+        scene.addEventListener('touchmove', function(e) {
+          if (!isDragging || !tubeAElement || reactionStarted) return;
           
           e.preventDefault();
           const touch = e.touches[0];
-          lastTouchX = touch.clientX;
-          lastTouchY = touch.clientY;
+          const deltaX = (touch.clientX - touchStartX) * 0.003;
+          const deltaY = (touch.clientY - touchStartY) * 0.003;
           
-          this.startDragTubeA();
-        });
-        
-        scene.addEventListener("touchmove", (e) => {
-          if (!isDragging || !draggedTube || reactionTriggered) return;
+          // Move tube A
+          tubeAElement.object3D.position.x = tubeAStartPos.x + deltaX;
+          tubeAElement.object3D.position.z = tubeAStartPos.z - deltaY;
           
-          e.preventDefault();
-          const touch = e.touches[0];
-          const deltaX = touch.clientX - lastTouchX;
-          const deltaY = touch.clientY - lastTouchY;
-          lastTouchX = touch.clientX;
-          lastTouchY = touch.clientY;
-          
-          this.moveDraggedTube(deltaX, deltaY);
-          this.updateLiquidTransfer();
-          this.checkMixingProximity();
-        });
-        
-        scene.addEventListener("touchend", (e) => {
-          if (!isDragging) return;
-          
-          if (this.checkMixingDistance()) {
-            triggerChemicalReaction();
-          } else {
-            this.returnToOriginalPosition();
-          }
-          
-          this.endDrag();
-        });
-      },
-      
-      startDragTubeA: function() {
-        if (!tubeAElement) return;
-        
-        draggedTube = tubeAElement;
-        isDragging = true;
-        
-        // Add drag visuals
-        const dragRing = document.createElement("a-ring");
-        dragRing.setAttribute("radius-inner", "0.18");
-        dragRing.setAttribute("radius-outer", "0.2");
-        dragRing.setAttribute("position", "0 0.3 0");
-        dragRing.setAttribute("rotation", "-90 0 0");
-        dragRing.setAttribute("color", "#4299e1");
-        dragRing.setAttribute("opacity", "0.7");
-        dragRing.setAttribute("id", "drag-ring");
-        dragRing.setAttribute("animation", "property: opacity; from: 0.7; to: 0.3; dur: 800; loop: true");
-        draggedTube.appendChild(dragRing);
-        
-        updateStatus();
-        updateInteractionIndicator("Dragging Tube A... Move over Tube B");
-      },
-      
-      moveDraggedTube: function(deltaX, deltaY) {
-        if (!draggedTube) return;
-        
-        const currentPos = draggedTube.object3D.position;
-        const moveScale = 0.002;
-        const newX = currentPos.x + deltaX * moveScale;
-        const newZ = currentPos.z - deltaY * moveScale;
-        
-        draggedTube.object3D.position.set(newX, currentPos.y, newZ);
-        
-        // Tilt tube while dragging
-        const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        const tiltAngle = Math.min(30, speed * 0.2);
-        draggedTube.setAttribute('rotation', {
-          x: -tiltAngle,
-          y: 0,
-          z: 0
-        });
-      },
-      
-      updateLiquidTransfer: function() {
-        this.clearOldParticles();
-        
-        if (this.checkMixingDistance()) {
-          const posA = tubeAElement.object3D.position;
-          const posB = tubeBElement.object3D.position;
-          
-          // Create blue droplets from Tube A to Tube B
-          for (let i = 0; i < 2; i++) {
-            this.createBlueDroplet(posA, posB);
-          }
-          
-          // Create yellow droplets from Tube B to Tube A (mixing)
-          for (let i = 0; i < 2; i++) {
-            this.createYellowDroplet(posB, posA);
-          }
-        }
-      },
-      
-      createBlueDroplet: function(fromPos, toPos) {
-        const droplet = document.createElement("a-sphere");
-        droplet.setAttribute("radius", "0.02");
-        droplet.setAttribute("color", "#339af0"); // BLUE
-        droplet.setAttribute("opacity", "0.9");
-        
-        droplet.setAttribute("position", {
-          x: fromPos.x + (Math.random() - 0.5) * 0.05,
-          y: fromPos.y + 0.2,
-          z: fromPos.z + (Math.random() - 0.5) * 0.05
-        });
-        
-        droplet.setAttribute("light", {
-          type: "point",
-          color: "#339af0",
-          intensity: 0.5,
-          distance: 0.2
-        });
-        
-        const scene = document.querySelector("a-scene");
-        scene.appendChild(droplet);
-        
-        transferParticles.push({
-          element: droplet,
-          startTime: Date.now(),
-          fromPos: { x: fromPos.x, y: fromPos.y, z: fromPos.z },
-          toPos: { x: toPos.x, y: toPos.y, z: toPos.z },
-          color: "blue"
-        });
-      },
-      
-      createYellowDroplet: function(fromPos, toPos) {
-        const droplet = document.createElement("a-sphere");
-        droplet.setAttribute("radius", "0.02");
-        droplet.setAttribute("color", "#ffd43b"); // YELLOW
-        droplet.setAttribute("opacity", "0.9");
-        
-        droplet.setAttribute("position", {
-          x: fromPos.x + (Math.random() - 0.5) * 0.05,
-          y: fromPos.y + 0.2,
-          z: fromPos.z + (Math.random() - 0.5) * 0.05
-        });
-        
-        droplet.setAttribute("light", {
-          type: "point",
-          color: "#ffd43b",
-          intensity: 0.5,
-          distance: 0.2
-        });
-        
-        const scene = document.querySelector("a-scene");
-        scene.appendChild(droplet);
-        
-        transferParticles.push({
-          element: droplet,
-          startTime: Date.now(),
-          fromPos: { x: fromPos.x, y: fromPos.y, z: fromPos.z },
-          toPos: { x: toPos.x, y: toPos.y, z: toPos.z },
-          color: "yellow"
-        });
-      },
-      
-      clearOldParticles: function() {
-        for (let i = transferParticles.length - 1; i >= 0; i--) {
-          const particle = transferParticles[i];
-          const age = Date.now() - particle.startTime;
-          
-          if (age > 1500) {
-            if (particle.element.parentNode) {
-              particle.element.parentNode.removeChild(particle.element);
-            }
-            transferParticles.splice(i, 1);
-          }
-        }
-      },
-      
-      checkMixingDistance: function() {
-        if (!tubeAElement || !tubeBElement) return false;
-        
-        const posA = tubeAElement.object3D.position;
-        const posB = tubeBElement.object3D.position;
-        
-        const distance = Math.sqrt(
-          Math.pow(posA.x - posB.x, 2) +
-          Math.pow(posA.z - posB.z, 2)
-        );
-        
-        return distance < mixDistance;
-      },
-      
-      checkMixingProximity: function() {
-        const isClose = this.checkMixingDistance();
-        
-        if (isClose) {
-          document.getElementById("experiment-status").textContent = "Ready to Mix! Release";
-          document.getElementById("experiment-status").className = "status-badge mixing";
-          
-          const tubeBGlow = document.querySelector("#tubeB-glow");
-          if (tubeBGlow) {
-            tubeBGlow.setAttribute("opacity", "0.6");
-            tubeBGlow.setAttribute("color", "#f59e0b");
-          }
-        } else {
-          document.getElementById("experiment-status").textContent = "Dragging Tube A";
-          document.getElementById("experiment-status").className = "status-badge active";
-          
-          const tubeBGlow = document.querySelector("#tubeB-glow");
-          if (tubeBGlow) {
-            tubeBGlow.setAttribute("opacity", "0");
-          }
-        }
-      },
-      
-      returnToOriginalPosition: function() {
-        if (!draggedTube) return;
-        
-        const currentPos = draggedTube.object3D.position;
-        const targetPos = tubeAInitialPos;
-        
-        const animateBack = (progress = 0) => {
-          progress += 0.1;
-          const t = Math.min(1, progress);
-          
-          const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-          
-          currentPos.x = currentPos.x + (targetPos.x - currentPos.x) * ease;
-          currentPos.z = currentPos.z + (targetPos.z - currentPos.z) * ease;
-          
-          draggedTube.setAttribute('rotation', {
-            x: -30 * (1 - ease),
+          // Tilt while dragging
+          tubeAElement.setAttribute('rotation', {
+            x: -20,
             y: 0,
             z: 0
           });
           
-          if (t < 1) {
-            requestAnimationFrame(() => animateBack(progress));
-          }
-        };
+          // Check if close to tube B
+          checkMixingProximity();
+        });
         
-        animateBack();
-      },
-      
-      endDrag: function() {
-        isDragging = false;
-        draggedTube = null;
-        
-        const dragRing = document.querySelector("#drag-ring");
-        if (dragRing && dragRing.parentNode) {
-          dragRing.parentNode.removeChild(dragRing);
-        }
-        
-        const tubeBGlow = document.querySelector("#tubeB-glow");
-        if (tubeBGlow) {
-          tubeBGlow.setAttribute("opacity", "0");
-        }
-        
-        if (!reactionTriggered) {
-          updateStatus();
-          updateInteractionIndicator("Touch & drag Tube A to Tube B");
-        }
-      }
-    });
-
-    // PARTICLE ANIMATION
-    AFRAME.registerComponent("particle-animator", {
-      tick: function () {
-        for (let i = transferParticles.length - 1; i >= 0; i--) {
-          const particle = transferParticles[i];
-          const age = Date.now() - particle.startTime;
-          const progress = Math.min(1, age / 1000);
+        scene.addEventListener('touchend', function(e) {
+          if (!isDragging) return;
           
-          if (progress >= 1) {
-            if (particle.element.parentNode) {
-              particle.element.parentNode.removeChild(particle.element);
+          isDragging = false;
+          
+          // Check if tubes are close enough
+          if (checkMixingDistance()) {
+            startChemicalReaction();
+          } else {
+            // Return to original position
+            if (tubeAElement) {
+              tubeAElement.setAttribute('animation', {
+                property: 'position',
+                to: `${tubeAStartPos.x} ${tubeAStartPos.y} ${tubeAStartPos.z}`,
+                dur: 500
+              });
+              tubeAElement.setAttribute('rotation', '0 0 0');
             }
-            transferParticles.splice(i, 1);
-            continue;
+            updateStatus();
+            updateInteraction('Touch & drag Blue tube to Yellow tube');
           }
-          
-          const x = particle.fromPos.x + (particle.toPos.x - particle.fromPos.x) * progress;
-          const z = particle.fromPos.z + (particle.toPos.z - particle.fromPos.z) * progress;
-          const y = particle.fromPos.y + 0.2 + Math.sin(progress * Math.PI) * 0.3;
-          
-          particle.element.setAttribute("position", { x, y, z });
-          
-          const scale = 0.02 * (1 - progress * 0.3);
-          particle.element.setAttribute("radius", scale);
-        }
-      }
+        });
+      }, 1000);
     });
 
-    // COLOR MIXING REACTION: BLUE + YELLOW = GREEN
-    AFRAME.registerComponent("color-mixing-reaction", {
-      init: function () {
-        this.reactionTime = 0;
-        this.isActive = false;
-        this.finalGreenColor = "#22c55e"; // Final green color
-      },
+    // SIMPLE DISTANCE CHECK
+    function checkMixingDistance() {
+      if (!tubeAElement || !tubeBElement) return false;
+      
+      const posA = tubeAElement.object3D.position;
+      const posB = tubeBElement.object3D.position;
+      
+      const distance = Math.sqrt(
+        Math.pow(posA.x - posB.x, 2) +
+        Math.pow(posA.z - posB.z, 2)
+      );
+      
+      return distance < 0.3; // Simple distance check
+    }
 
-      tick: function () {
-        if (this.isActive) {
-          this.reactionTime += 0.05;
-          
-          // Animate tube mixing
-          this.animateMixingMotion();
-          
-          // Update color mixing progress
-          this.updateColorMixing();
+    function checkMixingProximity() {
+      if (!tubeAElement || !tubeBElement) return;
+      
+      const isClose = checkMixingDistance();
+      
+      if (isClose) {
+        document.getElementById('experiment-status').textContent = 'Close! Release to Mix';
+        document.getElementById('experiment-status').style.color = '#ff9900';
+        
+        // Make tube B glow
+        const tubeBGlow = document.querySelector('#tubeB-glow');
+        if (tubeBGlow) {
+          tubeBGlow.setAttribute('opacity', '0.6');
         }
-      },
-
-      startReaction: function () {
-        this.isActive = true;
-        reactionActive = true;
-        this.reactionTime = 0;
+      } else {
+        document.getElementById('experiment-status').textContent = 'Dragging...';
+        document.getElementById('experiment-status').style.color = '#ffffff';
         
-        // Clear transfer particles
-        transferParticles.forEach(p => {
-          if (p.element.parentNode) p.element.parentNode.removeChild(p.element);
-        });
-        transferParticles = [];
-        
-        // Move tubes together
-        this.moveTubesTogether();
-        
-        // Start color transition
-        this.startColorTransition();
-        
-        // Create mixing effects
-        this.createMixingEffects();
-        
-        // Update UI
-        document.getElementById("reaction-status").textContent = "Blue + Yellow = Green!";
-        document.getElementById("reaction-status").className = "status-badge reaction";
-        updateInteractionIndicator("⚗️ Chemical Reaction: Blue + Yellow = Green");
-      },
-
-      moveTubesTogether: function () {
-        if (!tubeAElement || !tubeBElement) return;
-        
-        const posA = tubeAElement.object3D.position;
-        const posB = tubeBElement.object3D.position;
-        const midX = (posA.x + posB.x) / 2;
-        const midZ = (posA.z + posB.z) / 2;
-        
-        const animateTogether = () => {
-          posA.x += (midX - posA.x) * 0.1;
-          posA.z += (midZ - posA.z) * 0.1;
-          posB.x += (midX - posB.x) * 0.1;
-          posB.z += (midZ - posB.z) * 0.1;
-          
-          // Tilt tubes toward each other
-          const tilt = Math.sin(this.reactionTime * 2) * 15;
-          tubeAElement.setAttribute('rotation', { x: tilt, y: this.reactionTime * 8, z: 0 });
-          tubeBElement.setAttribute('rotation', { x: -tilt, y: -this.reactionTime * 8, z: 0 });
-          
-          if (Math.abs(posA.x - midX) > 0.01 || Math.abs(posB.x - midX) > 0.01) {
-            requestAnimationFrame(() => animateTogether());
-          }
-        };
-        
-        animateTogether();
-      },
-
-      startColorTransition: function () {
-        const liquidA = document.querySelector("#liquidA");
-        const liquidB = document.querySelector("#liquidB");
-        const surfaceA = document.querySelector("#surfaceA");
-        const surfaceB = document.querySelector("#surfaceB");
-        
-        if (!liquidA || !liquidB || !surfaceA || !surfaceB) return;
-        
-        // Initial colors
-        const blueColor = { r: 51, g: 154, b: 240 }; // #339af0
-        const yellowColor = { r: 255, g: 212, b: 59 }; // #ffd43b
-        const greenColor = { r: 34, g: 197, b: 94 }; // #22c55e
-        
-        let progress = 0;
-        
-        const transitionInterval = setInterval(() => {
-          if (!this.isActive) {
-            clearInterval(transitionInterval);
-            return;
-          }
-          
-          progress = Math.min(1, progress + 0.02);
-          
-          // Interpolate from blue/yellow to green
-          const rA = Math.floor(blueColor.r + (greenColor.r - blueColor.r) * progress);
-          const gA = Math.floor(blueColor.g + (greenColor.g - blueColor.g) * progress);
-          const bA = Math.floor(blueColor.b + (greenColor.b - blueColor.b) * progress);
-          
-          const rB = Math.floor(yellowColor.r + (greenColor.r - yellowColor.r) * progress);
-          const gB = Math.floor(yellowColor.g + (greenColor.g - yellowColor.g) * progress);
-          const bB = Math.floor(yellowColor.b + (greenColor.b - yellowColor.b) * progress);
-          
-          const colorA = `rgb(${rA}, ${gA}, ${bA})`;
-          const colorB = `rgb(${rB}, ${gB}, ${bB})`;
-          
-          // Update tube A (blue → green)
-          liquidA.setAttribute('color', colorA);
-          liquidA.setAttribute('emissive', colorA);
-          liquidA.setAttribute('emissive-intensity', 0.3 + Math.sin(this.reactionTime * 3) * 0.2);
-          surfaceA.setAttribute('color', colorA);
-          
-          // Update tube B (yellow → green)
-          liquidB.setAttribute('color', colorB);
-          liquidB.setAttribute('emissive', colorB);
-          liquidB.setAttribute('emissive-intensity', 0.3 + Math.sin(this.reactionTime * 3) * 0.2);
-          surfaceB.setAttribute('color', colorB);
-          
-          // When progress is complete, make both tubes the same green
-          if (progress >= 1) {
-            const finalColor = `rgb(${greenColor.r}, ${greenColor.g}, ${greenColor.b})`;
-            liquidA.setAttribute('color', finalColor);
-            liquidB.setAttribute('color', finalColor);
-            surfaceA.setAttribute('color', finalColor);
-            surfaceB.setAttribute('color', finalColor);
-            clearInterval(transitionInterval);
-          }
-        }, 30);
-      },
-
-      createMixingEffects: function () {
-        // Create green mixing bubbles
-        for (let i = 0; i < 40; i++) {
-          setTimeout(() => {
-            this.createGreenBubble(i);
-          }, i * 25);
+        const tubeBGlow = document.querySelector('#tubeB-glow');
+        if (tubeBGlow) {
+          tubeBGlow.setAttribute('opacity', '0');
         }
-        
-        // Create mixing connection
-        this.createMixingConnection();
-      },
-
-      createGreenBubble: function (index) {
-        const bubble = document.createElement("a-sphere");
-        
-        // Color transition from blue/yellow to green
-        const progress = Math.min(1, index / 40);
-        const r = Math.floor(51 + (34 - 51) * progress);
-        const g = Math.floor(154 + (197 - 154) * progress);
-        const b = Math.floor(240 + (94 - 240) * progress);
-        
-        bubble.setAttribute("radius", "0.015");
-        bubble.setAttribute("color", `rgb(${r}, ${g}, ${b})`);
-        bubble.setAttribute("opacity", "0.8");
-        
-        if (tubeAElement) {
-          const pos = tubeAElement.object3D.position;
-          bubble.setAttribute("position", {
-            x: pos.x + (Math.random() - 0.5) * 0.3,
-            y: pos.y + 0.3,
-            z: pos.z + (Math.random() - 0.5) * 0.3
-          });
-        }
-        
-        bubble.setAttribute("light", {
-          type: "point",
-          color: `rgb(${r}, ${g}, ${b})`,
-          intensity: 0.6,
-          distance: 0.3
-        });
-        
-        const scene = document.querySelector("a-scene");
-        scene.appendChild(bubble);
-        
-        // Remove after animation
-        setTimeout(() => {
-          if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
-        }, 2000);
-      },
-
-      createMixingConnection: function () {
-        if (!tubeAElement || !tubeBElement) return;
-        
-        const connection = document.createElement("a-cylinder");
-        connection.setAttribute("radius", "0.02");
-        connection.setAttribute("height", "0.5");
-        connection.setAttribute("color", "#22c55e"); // GREEN
-        connection.setAttribute("opacity", "0.8");
-        
-        const posA = tubeAElement.object3D.position;
-        const posB = tubeBElement.object3D.position;
-        const midX = (posA.x + posB.x) / 2;
-        const midY = (posA.y + posB.y) / 2;
-        const midZ = (posA.z + posB.z) / 2;
-        
-        connection.setAttribute("position", { x: midX, y: midY, z: midZ });
-        
-        const dx = posB.x - posA.x;
-        const dz = posB.z - posA.z;
-        const distance = Math.sqrt(dx * dx + dz * dz);
-        const rotationY = Math.atan2(dz, dx) * (180 / Math.PI);
-        
-        connection.setAttribute("rotation", `0 ${rotationY} 0`);
-        connection.setAttribute("height", distance);
-        
-        connection.setAttribute("light", {
-          type: "point",
-          color: "#22c55e",
-          intensity: 0.7,
-          distance: 1
-        });
-        
-        const scene = document.querySelector("a-scene");
-        scene.appendChild(connection);
-        
-        // Remove after animation
-        setTimeout(() => {
-          if (connection.parentNode) connection.parentNode.removeChild(connection);
-        }, 1000);
-      },
-
-      animateMixingMotion: function () {
-        if (!tubeAElement || !tubeBElement) return;
-        
-        // Gentle floating motion
-        const floatY = Math.sin(this.reactionTime) * 0.02;
-        
-        const posA = tubeAElement.object3D.position;
-        const posB = tubeBElement.object3D.position;
-        posA.y = tubeAInitialPos.y + floatY;
-        posB.y = tubeBInitialPos.y + floatY;
-      },
-
-      updateColorMixing: function () {
-        // Color mixing handled by interval
-      },
-
-      stopReaction: function () {
-        this.isActive = false;
-        reactionActive = false;
       }
-    });
+    }
 
-    // Function to trigger chemical reaction
-    function triggerChemicalReaction() {
-      if (reactionTriggered) return;
+    // SIMPLE CHEMICAL REACTION
+    function startChemicalReaction() {
+      if (reactionStarted) return;
       
-      reactionTriggered = true;
+      reactionStarted = true;
       
-      document.getElementById("experiment-status").textContent = "Chemical Reaction!";
-      document.getElementById("experiment-status").className = "status-badge reaction";
+      console.log('REACTION STARTING!');
       
-      const tubeA = document.querySelector("#tubeA");
-      if (tubeA && tubeA.components["color-mixing-reaction"]) {
-        tubeA.components["color-mixing-reaction"].startReaction();
+      // Update UI
+      document.getElementById('experiment-status').textContent = '⚗️ REACTION IN PROGRESS!';
+      document.getElementById('experiment-status').style.color = '#00ff00';
+      document.getElementById('reaction-status').textContent = 'Blue + Yellow = Green!';
+      document.getElementById('reaction-status').style.color = '#00ff00';
+      updateInteraction('⚗️ Chemical Reaction: Blue + Yellow = Green');
+      
+      // Move tubes together
+      moveTubesTogether();
+      
+      // Start color change
+      startColorChange();
+      
+      // Create mixing effects
+      createMixingEffects();
+    }
+
+    function moveTubesTogether() {
+      if (!tubeAElement || !tubeBElement) return;
+      
+      const posB = tubeBElement.object3D.position;
+      
+      // Move tube A to tube B
+      tubeAElement.setAttribute('animation', {
+        property: 'position',
+        to: `${posB.x} ${posB.y} ${posB.z}`,
+        dur: 1000,
+        easing: 'easeInOutQuad'
+      });
+    }
+
+    function startColorChange() {
+      // Get liquid elements
+      const liquidA = document.querySelector('#liquidA');
+      const liquidB = document.querySelector('#liquidB');
+      const surfaceA = document.querySelector('#surfaceA');
+      const surfaceB = document.querySelector('#surfaceB');
+      
+      if (!liquidA || !liquidB) return;
+      
+      let progress = 0;
+      const steps = 50;
+      const stepDuration = 50;
+      
+      const colorChangeInterval = setInterval(() => {
+        progress++;
+        
+        if (progress > steps) {
+          clearInterval(colorChangeInterval);
+          return;
+        }
+        
+        const t = progress / steps;
+        
+        // Blue (51, 154, 240) to Green (0, 200, 0)
+        const rA = Math.floor(51 * (1 - t));
+        const gA = Math.floor(154 + (200 - 154) * t);
+        const bA = Math.floor(240 * (1 - t));
+        
+        // Yellow (255, 212, 59) to Green (0, 200, 0)
+        const rB = Math.floor(255 * (1 - t));
+        const gB = Math.floor(212 + (200 - 212) * t);
+        const bB = Math.floor(59 * (1 - t));
+        
+        const colorA = `rgb(${rA}, ${gA}, ${bA})`;
+        const colorB = `rgb(${rB}, ${gB}, ${bB})`;
+        
+        // Update colors
+        liquidA.setAttribute('color', colorA);
+        liquidB.setAttribute('color', colorB);
+        
+        if (surfaceA) surfaceA.setAttribute('color', colorA);
+        if (surfaceB) surfaceB.setAttribute('color', colorB);
+        
+        // Add glow effect
+        liquidA.setAttribute('emissive', colorA);
+        liquidB.setAttribute('emissive', colorB);
+        liquidA.setAttribute('emissive-intensity', t * 0.5);
+        liquidB.setAttribute('emissive-intensity', t * 0.5);
+        
+      }, stepDuration);
+    }
+
+    function createMixingEffects() {
+      // Create bubbles
+      for (let i = 0; i < 30; i++) {
+        setTimeout(() => {
+          createBubble(i);
+        }, i * 100);
       }
+      
+      // Create connection effect
+      setTimeout(() => {
+        createConnectionEffect();
+      }, 500);
+    }
+
+    function createBubble(index) {
+      const bubble = document.createElement('a-sphere');
+      bubble.setAttribute('radius', '0.02');
+      bubble.setAttribute('color', '#00ff00');
+      bubble.setAttribute('opacity', '0.8');
+      
+      if (tubeAElement) {
+        const pos = tubeAElement.object3D.position;
+        bubble.setAttribute('position', {
+          x: pos.x + (Math.random() - 0.5) * 0.2,
+          y: pos.y + 0.3,
+          z: pos.z + (Math.random() - 0.5) * 0.2
+        });
+      }
+      
+      bubble.setAttribute('animation', {
+        property: 'position',
+        to: '0 0.8 0',
+        dur: 2000,
+        easing: 'easeOutQuad'
+      });
+      
+      bubble.setAttribute('animation__opacity', {
+        property: 'opacity',
+        from: '0.8',
+        to: '0',
+        dur: 2000
+      });
+      
+      document.querySelector('a-scene').appendChild(bubble);
+      
+      // Remove after animation
+      setTimeout(() => {
+        if (bubble.parentNode) {
+          bubble.parentNode.removeChild(bubble);
+        }
+      }, 2000);
+    }
+
+    function createConnectionEffect() {
+      if (!tubeAElement || !tubeBElement) return;
+      
+      const connection = document.createElement('a-cylinder');
+      connection.setAttribute('radius', '0.02');
+      connection.setAttribute('height', '0.3');
+      connection.setAttribute('color', '#00ff00');
+      connection.setAttribute('opacity', '0.6');
+      
+      const posA = tubeAElement.object3D.position;
+      const posB = tubeBElement.object3D.position;
+      const midX = (posA.x + posB.x) / 2;
+      const midY = (posA.y + posB.y) / 2;
+      const midZ = (posA.z + posB.z) / 2;
+      
+      connection.setAttribute('position', { x: midX, y: midY, z: midZ });
+      
+      // Rotate to connect tubes
+      const dx = posB.x - posA.x;
+      const dz = posB.z - posA.z;
+      const rotationY = Math.atan2(dz, dx) * (180 / Math.PI);
+      connection.setAttribute('rotation', `0 ${rotationY} 0`);
+      
+      document.querySelector('a-scene').appendChild(connection);
+      
+      // Remove after animation
+      setTimeout(() => {
+        if (connection.parentNode) {
+          connection.parentNode.removeChild(connection);
+        }
+      }, 1000);
     }
 
     function updateStatus() {
-      if (reactionTriggered) return;
-      
-      const status = document.getElementById("experiment-status");
+      const status = document.getElementById('experiment-status');
       if (tubeAVisible && tubeBVisible) {
         if (isDragging) {
-          status.textContent = "Dragging Tube A";
-          status.className = "status-badge active";
+          status.textContent = 'Dragging Blue Tube';
+        } else if (reactionStarted) {
+          status.textContent = '⚗️ REACTION IN PROGRESS!';
+          status.style.color = '#00ff00';
         } else {
-          status.textContent = "Ready to Mix";
-          status.className = "status-badge ready";
+          status.textContent = 'Ready! Drag Blue to Yellow';
         }
       } else if (tubeAVisible) {
-        status.textContent = "Tube A Detected";
-        status.className = "status-badge";
-        updateInteractionIndicator("Waiting for Tube B...");
+        status.textContent = 'Blue tube found';
       } else if (tubeBVisible) {
-        status.textContent = "Tube B Detected";
-        status.className = "status-badge";
-        updateInteractionIndicator("Waiting for Tube A...");
+        status.textContent = 'Yellow tube found';
       } else {
-        status.textContent = "Awaiting Tubes";
-        status.className = "status-badge";
-        updateInteractionIndicator("Scan both tube markers");
+        status.textContent = 'Show tube markers';
       }
     }
 
-    function updateInteractionIndicator(message) {
-      const indicator = document.querySelector(".interaction-indicator");
+    function updateInteraction(message) {
+      const indicator = document.querySelector('.interaction-indicator');
       if (indicator) {
         indicator.textContent = message;
-        if (message.includes("Dragging")) {
-          indicator.style.background = "rgba(66, 153, 225, 0.9)";
-        } else if (message.includes("Reaction")) {
-          indicator.style.background = "rgba(34, 197, 94, 0.9)";
-        } else if (message.includes("Mix")) {
-          indicator.style.background = "rgba(245, 158, 11, 0.9)";
-        } else {
-          indicator.style.background = "rgba(159, 122, 234, 0.9)";
-        }
       }
     }
 
     // Reset function
     window.resetExperiment = function() {
-      reactionTriggered = false;
-      reactionActive = false;
+      console.log('Resetting experiment...');
+      
+      reactionStarted = false;
       isDragging = false;
-      draggedTube = null;
       
       // Reset tube positions
       if (tubeAElement) {
-        tubeAElement.object3D.position.set(tubeAInitialPos.x, tubeAInitialPos.y, tubeAInitialPos.z);
+        tubeAElement.object3D.position.set(0, 0, 0);
         tubeAElement.setAttribute('rotation', '0 0 0');
       }
-      if (tubeBElement) {
-        tubeBElement.object3D.position.set(tubeBInitialPos.x, tubeBInitialPos.y, tubeBInitialPos.z);
-        tubeBElement.setAttribute('rotation', '0 0 0');
-      }
       
-      // Stop reaction
-      const tubeA = document.querySelector("#tubeA");
-      if (tubeA && tubeA.components["color-mixing-reaction"]) {
-        tubeA.components["color-mixing-reaction"].stopReaction();
-      }
-      
-      // Clear particles
-      transferParticles.forEach(p => {
-        if (p.element.parentNode) p.element.parentNode.removeChild(p.element);
-      });
-      transferParticles = [];
-      
-      // Reset liquid colors to original
-      const liquidA = document.querySelector("#liquidA");
-      const liquidB = document.querySelector("#liquidB");
-      const surfaceA = document.querySelector("#surfaceA");
-      const surfaceB = document.querySelector("#surfaceB");
+      // Reset liquid colors
+      const liquidA = document.querySelector('#liquidA');
+      const liquidB = document.querySelector('#liquidB');
+      const surfaceA = document.querySelector('#surfaceA');
+      const surfaceB = document.querySelector('#surfaceB');
       
       if (liquidA) {
-        liquidA.setAttribute('color', '#339af0'); // BLUE
+        liquidA.setAttribute('color', '#0088ff'); // BLUE
         liquidA.setAttribute('emissive', '#000000');
         liquidA.setAttribute('emissive-intensity', '0');
       }
       if (liquidB) {
-        liquidB.setAttribute('color', '#ffd43b'); // YELLOW
+        liquidB.setAttribute('color', '#ffff00'); // YELLOW
         liquidB.setAttribute('emissive', '#000000');
         liquidB.setAttribute('emissive-intensity', '0');
       }
       if (surfaceA) {
-        surfaceA.setAttribute('color', '#339af0'); // BLUE
+        surfaceA.setAttribute('color', '#0088ff'); // BLUE
       }
       if (surfaceB) {
-        surfaceB.setAttribute('color', '#ffd43b'); // YELLOW
+        surfaceB.setAttribute('color', '#ffff00'); // YELLOW
+      }
+      
+      // Reset tube B glow
+      const tubeBGlow = document.querySelector('#tubeB-glow');
+      if (tubeBGlow) {
+        tubeBGlow.setAttribute('opacity', '0');
       }
       
       // Reset UI
-      document.getElementById("experiment-status").textContent = "Ready to Mix";
-      document.getElementById("experiment-status").className = "status-badge ready";
-      document.getElementById("reaction-status").textContent = "Blue + Yellow = Green";
-      document.getElementById("reaction-status").className = "status-badge";
+      document.getElementById('experiment-status').textContent = 'Ready! Drag Blue to Yellow';
+      document.getElementById('experiment-status').style.color = 'white';
+      document.getElementById('reaction-status').textContent = 'Not reacted';
+      document.getElementById('reaction-status').style.color = 'white';
       
-      updateInteractionIndicator("Touch & drag Tube A to Tube B");
-      
+      updateInteraction('Touch & drag Blue tube to Yellow tube');
       updateStatus();
     };
 
@@ -864,31 +481,14 @@
 </head>
 
 <body style="margin:0; overflow:hidden;">
-  <!-- Professional HUD Display -->
+  <!-- HUD Display -->
   <div id="hud">
-    <h3>Color Mixing Experiment</h3>
-    
-    <div class="status-item">
-      <span class="status-label">Status:</span>
-      <span class="status-badge ready" id="experiment-status">Ready to Mix</span>
-    </div>
-    
-    <div class="status-item">
-      <span class="status-label">Tube A (Blue):</span>
-      <span class="status-badge not-found" id="marker-a-status">Not Found</span>
-    </div>
-    
-    <div class="status-item">
-      <span class="status-label">Tube B (Yellow):</span>
-      <span class="status-badge not-found" id="marker-b-status">Not Found</span>
-    </div>
-    
-    <div class="status-item">
-      <span class="status-label">Reaction:</span>
-      <span class="status-badge" id="reaction-status">Blue + Yellow = Green</span>
-    </div>
-    
-    <button onclick="resetExperiment()">
+    <h3 style="margin: 0 0 10px 0;">🧪 Chemical Mixing</h3>
+    <p><strong>Status:</strong> <span id="experiment-status">Show tube markers</span></p>
+    <p><strong>Blue Tube:</strong> <span id="marker-a-status">❌</span></p>
+    <p><strong>Yellow Tube:</strong> <span id="marker-b-status">❌</span></p>
+    <p><strong>Reaction:</strong> <span id="reaction-status">Blue + Yellow = Green</span></p>
+    <button onclick="resetExperiment()" style="margin-top: 5px;">
       Reset Experiment
     </button>
   </div>
@@ -901,116 +501,104 @@
   <a-scene
     embedded
     arjs="debugUIEnabled:false;"
-    device-orientation-permission-ui="enabled: true"
-    drag-system
-    particle-animator>
+    device-orientation-permission-ui="enabled: true">
 
-    <!-- Professional Lighting -->
-    <a-light type="ambient" intensity="0.7" color="#e0e0e0"></a-light>
-    <a-light type="directional" position="1 2 1" intensity="0.8" color="#ffffff"></a-light>
+    <!-- Lighting -->
+    <a-light type="ambient" intensity="0.8"></a-light>
+    <a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
 
-    <!-- ========== TUBE A - BLUE LIQUID ========= -->
+    <!-- ========== BLUE TUBE ========= -->
     <a-marker
+      id="markerA"
       type="pattern"
-      url="markers/testtube_markerA.patt"
-      marker-tracker="id: A">
+      url="markers/testtube_markerA.patt">
 
-      <a-entity id="tubeA" color-mixing-reaction position="0 0 0">
-        <!-- Glass Tube -->
+      <a-entity id="tubeA" position="0 0 0">
+        <!-- Glass -->
         <a-cylinder
-          radius="0.16"
+          radius="0.15"
           height="0.6"
           position="0 0.3 0"
-          color="#f8f9fa"
-          opacity="0.2"
-          roughness="0.05"
-          metalness="0.8"
-          transparent="true">
+          color="#ffffff"
+          opacity="0.25"
+          roughness="0.1"
+          metalness="0.5">
         </a-cylinder>
 
-        <!-- Blue Chemical Solution -->
+        <!-- BLUE Liquid -->
         <a-cylinder
           id="liquidA"
-          radius="0.14"
+          radius="0.13"
           height="0.45"
           position="0 0.225 0"
-          color="#339af0"
+          color="#0088ff"
           opacity="0.95"
-          roughness="0.1"
-          metalness="0.4"
-          emissive="#000000"
-          emissive-intensity="0"
-          transparent="true">
+          roughness="0.2"
+          metalness="0.1">
         </a-cylinder>
 
-        <!-- Blue Liquid surface -->
+        <!-- Blue surface -->
         <a-circle
           id="surfaceA"
-          radius="0.14"
+          radius="0.13"
           position="0 0.45 0"
-          color="#339af0"
+          color="#0088ff"
           opacity="0.95"
-          rotation="-90 0 0"
-          transparent="true">
+          rotation="-90 0 0">
         </a-circle>
 
       </a-entity>
 
     </a-marker>
 
-    <!-- ========== TUBE B - YELLOW LIQUID ========= -->
+    <!-- ========== YELLOW TUBE ========= -->
     <a-marker
+      id="markerB"
       type="pattern"
-      url="markers/testtube_markerB.patt"
-      marker-tracker="id: B">
+      url="markers/testtube_markerB.patt">
 
       <a-entity id="tubeB" position="0 0 0">
-        <!-- Glass Tube -->
+        <!-- Glass -->
         <a-cylinder
-          radius="0.16"
+          radius="0.15"
           height="0.6"
           position="0 0.3 0"
-          color="#f8f9fa"
-          opacity="0.2"
-          roughness="0.05"
-          metalness="0.8"
-          transparent="true">
+          color="#ffffff"
+          opacity="0.25"
+          roughness="0.1"
+          metalness="0.5">
         </a-cylinder>
 
-        <!-- Yellow Chemical Solution -->
+        <!-- YELLOW Liquid -->
         <a-cylinder
           id="liquidB"
-          radius="0.14"
+          radius="0.13"
           height="0.45"
           position="0 0.225 0"
-          color="#ffd43b"
+          color="#ffff00"
           opacity="0.95"
-          roughness="0.1"
-          metalness="0.4"
-          emissive="#000000"
-          emissive-intensity="0"
-          transparent="true">
+          roughness="0.2"
+          metalness="0.1">
         </a-cylinder>
 
-        <!-- Yellow Liquid surface -->
+        <!-- Yellow surface -->
         <a-circle
           id="surfaceB"
-          radius="0.14"
+          radius="0.13"
           position="0 0.45 0"
-          color="#ffd43b"
+          color="#ffff00"
           opacity="0.95"
-          rotation="-90 0 0"
-          transparent="true">
+          rotation="-90 0 0">
         </a-circle>
 
         <!-- Proximity glow -->
         <a-ring
           id="tubeB-glow"
-          radius-inner="0.18"
-          radius-outer="0.2"
+          radius-inner="0.14"
+          radius-outer="0.15"
           position="0 0.3 0"
           rotation="-90 0 0"
-          color="#f59e0b"
+          color="#ff9900"
           opacity="0"
           transparent="true">
         </a-ring>
@@ -1022,17 +610,5 @@
     <!-- Camera -->
     <a-entity camera></a-entity>
   </a-scene>
-  
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      updateStatus();
-    });
-    
-    setInterval(() => {
-      if (!reactionTriggered) {
-        updateStatus();
-      }
-    }, 100);
-  </script>
 </body>
 </html>
