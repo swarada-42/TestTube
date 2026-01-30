@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Drag & Real-time Reaction</title>
+  <title>AR Chemical Mixing – Drag & Reaction</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -63,6 +63,7 @@
     let reactionStarted = false;
     let tubeAElement = null;
     let tubeBElement = null;
+    let isOverYellowTube = false;
     
     // Simple drag tracking
     let touchStartX = 0;
@@ -112,7 +113,7 @@
           }
         });
         
-        // SIMPLE TOUCH DRAG
+        // SIMPLE TOUCH DRAG - Only start dragging when touching the blue tube
         scene.addEventListener('touchstart', function(e) {
           if (!tubeAVisible || !tubeBVisible || reactionStarted) return;
           
@@ -128,8 +129,18 @@
           }
           
           isDragging = true;
+          isOverYellowTube = false;
           updateStatus();
           updateInteraction('Dragging Blue Tube... Move it over Yellow Tube');
+          
+          // Add a slight tilt to indicate dragging
+          if (tubeAElement) {
+            tubeAElement.setAttribute('rotation', {
+              x: -20,
+              y: 0,
+              z: 0
+            });
+          }
         });
         
         scene.addEventListener('touchmove', function(e) {
@@ -144,15 +155,11 @@
           tubeAElement.object3D.position.x = tubeAStartPos.x + deltaX;
           tubeAElement.object3D.position.z = tubeAStartPos.z - deltaY;
           
-          // Tilt while dragging
-          tubeAElement.setAttribute('rotation', {
-            x: -20,
-            y: 0,
-            z: 0
-          });
+          // Check if blue tube is over yellow tube
+          checkIfOverYellowTube();
           
-          // Check if close to tube B and update reaction in REAL-TIME
-          checkMixingProximity();
+          // Update visual feedback based on proximity
+          updateProximityFeedback();
         });
         
         scene.addEventListener('touchend', function(e) {
@@ -160,22 +167,27 @@
           
           isDragging = false;
           
-          // Check if tubes are close enough
-          if (checkMixingDistance()) {
-            // Complete the reaction
-            completeChemicalReaction();
+          // Reset tube rotation
+          if (tubeAElement) {
+            tubeAElement.setAttribute('rotation', '0 0 0');
+          }
+          
+          // Check if blue tube was released over yellow tube
+          if (isOverYellowTube) {
+            startChemicalReaction();
           } else {
             // Return to original position
             if (tubeAElement) {
               tubeAElement.setAttribute('animation', {
                 property: 'position',
                 to: `${tubeAStartPos.x} ${tubeAStartPos.y} ${tubeAStartPos.z}`,
-                dur: 500
+                dur: 500,
+                easing: 'easeInOutQuad'
               });
-              tubeAElement.setAttribute('rotation', '0 0 0');
             }
-            // Reset colors if reaction was partially started
-            resetReactionColors();
+            
+            // Reset proximity feedback
+            resetProximityFeedback();
             updateStatus();
             updateInteraction('Touch & drag Blue tube to Yellow tube');
           }
@@ -183,9 +195,12 @@
       }, 1000);
     });
 
-    // SIMPLE DISTANCE CHECK
-    function checkMixingDistance() {
-      if (!tubeAElement || !tubeBElement) return false;
+    // Check if blue tube is over yellow tube
+    function checkIfOverYellowTube() {
+      if (!tubeAElement || !tubeBElement) {
+        isOverYellowTube = false;
+        return false;
+      }
       
       const posA = tubeAElement.object3D.position;
       const posB = tubeBElement.object3D.position;
@@ -195,146 +210,90 @@
         Math.pow(posA.z - posB.z, 2)
       );
       
-      return distance < 0.3; // Simple distance check
+      isOverYellowTube = distance < 0.25; // Tighter threshold for "over"
+      return isOverYellowTube;
     }
 
-    function checkMixingProximity() {
+    // Update visual feedback based on proximity
+    function updateProximityFeedback() {
       if (!tubeAElement || !tubeBElement) return;
       
-      const isClose = checkMixingDistance();
+      const isClose = checkIfOverYellowTube();
       
       if (isClose) {
-        document.getElementById('experiment-status').textContent = 'Mixing in progress...';
+        document.getElementById('experiment-status').textContent = 'Release to Mix!';
         document.getElementById('experiment-status').style.color = '#ff9900';
         
-        // Make tube B glow
+        // Make yellow tube glow stronger
         const tubeBGlow = document.querySelector('#tubeB-glow');
         if (tubeBGlow) {
-          tubeBGlow.setAttribute('opacity', '0.6');
+          tubeBGlow.setAttribute('opacity', '0.8');
+          tubeBGlow.setAttribute('color', '#00ff00');
         }
         
-        // Calculate mixing intensity based on distance
-        const posA = tubeAElement.object3D.position;
-        const posB = tubeBElement.object3D.position;
-        const distance = Math.sqrt(
-          Math.pow(posA.x - posB.x, 2) +
-          Math.pow(posA.z - posB.z, 2)
-        );
-        
-        // Normalize distance to 0-1 (0 = closest, 1 = at threshold)
-        const normalizedDistance = Math.min(1, Math.max(0, distance / 0.3));
-        const mixingIntensity = 1 - normalizedDistance;
-        
-        // Apply real-time color change based on mixing intensity
-        updateLiquidColors(mixingIntensity);
-        
-        // Create some mixing effects
-        if (Math.random() > 0.7) {
-          createMixingEffect();
+        // Make blue tube glow
+        const tubeAGlow = document.querySelector('#tubeA-glow');
+        if (tubeAGlow) {
+          tubeAGlow.setAttribute('opacity', '0.6');
+          tubeAGlow.setAttribute('color', '#00ff00');
         }
         
       } else {
         document.getElementById('experiment-status').textContent = 'Dragging...';
         document.getElementById('experiment-status').style.color = '#ffffff';
         
+        // Reset glow effects
         const tubeBGlow = document.querySelector('#tubeB-glow');
         if (tubeBGlow) {
-          tubeBGlow.setAttribute('opacity', '0');
+          tubeBGlow.setAttribute('opacity', '0.3');
+          tubeBGlow.setAttribute('color', '#ff9900');
         }
         
-        // Reset colors when not close
-        resetReactionColors();
+        const tubeAGlow = document.querySelector('#tubeA-glow');
+        if (tubeAGlow) {
+          tubeAGlow.setAttribute('opacity', '0');
+        }
       }
     }
 
-    // UPDATE LIQUID COLORS IN REAL-TIME
-    function updateLiquidColors(mixingIntensity) {
-      const liquidA = document.querySelector('#liquidA');
-      const liquidB = document.querySelector('#liquidB');
-      const surfaceA = document.querySelector('#surfaceA');
-      const surfaceB = document.querySelector('#surfaceB');
+    // Reset proximity feedback
+    function resetProximityFeedback() {
+      document.getElementById('experiment-status').textContent = 'Ready! Drag Blue to Yellow';
+      document.getElementById('experiment-status').style.color = '#ffffff';
       
-      if (!liquidA || !liquidB) return;
+      const tubeBGlow = document.querySelector('#tubeB-glow');
+      if (tubeBGlow) {
+        tubeBGlow.setAttribute('opacity', '0');
+      }
       
-      // Blue (51, 154, 240) to Green (0, 200, 0)
-      const rA = Math.floor(51 * (1 - mixingIntensity));
-      const gA = Math.floor(154 + (200 - 154) * mixingIntensity);
-      const bA = Math.floor(240 * (1 - mixingIntensity));
-      
-      // Yellow (255, 212, 59) to Green (0, 200, 0)
-      const rB = Math.floor(255 * (1 - mixingIntensity));
-      const gB = Math.floor(212 + (200 - 212) * mixingIntensity);
-      const bB = Math.floor(59 * (1 - mixingIntensity));
-      
-      const colorA = `rgb(${rA}, ${gA}, ${bA})`;
-      const colorB = `rgb(${rB}, ${gB}, ${bB})`;
-      
-      // Update colors
-      liquidA.setAttribute('color', colorA);
-      liquidB.setAttribute('color', colorB);
-      
-      if (surfaceA) surfaceA.setAttribute('color', colorA);
-      if (surfaceB) surfaceB.setAttribute('color', colorB);
-      
-      // Add glow effect based on mixing intensity
-      liquidA.setAttribute('emissive', colorA);
-      liquidB.setAttribute('emissive', colorB);
-      liquidA.setAttribute('emissive-intensity', mixingIntensity * 0.5);
-      liquidB.setAttribute('emissive-intensity', mixingIntensity * 0.5);
-      
-      // Update reaction status
-      const greenPercentage = Math.floor(mixingIntensity * 100);
-      document.getElementById('reaction-status').textContent = `Reacting: ${greenPercentage}% Green`;
-      document.getElementById('reaction-status').style.color = colorA;
+      const tubeAGlow = document.querySelector('#tubeA-glow');
+      if (tubeAGlow) {
+        tubeAGlow.setAttribute('opacity', '0');
+      }
     }
 
-    function resetReactionColors() {
-      const liquidA = document.querySelector('#liquidA');
-      const liquidB = document.querySelector('#liquidB');
-      const surfaceA = document.querySelector('#surfaceA');
-      const surfaceB = document.querySelector('#surfaceB');
-      
-      if (liquidA) {
-        liquidA.setAttribute('color', '#0088ff'); // BLUE
-        liquidA.setAttribute('emissive', '#000000');
-        liquidA.setAttribute('emissive-intensity', '0');
-      }
-      if (liquidB) {
-        liquidB.setAttribute('color', '#ffff00'); // YELLOW
-        liquidB.setAttribute('emissive', '#000000');
-        liquidB.setAttribute('emissive-intensity', '0');
-      }
-      if (surfaceA) {
-        surfaceA.setAttribute('color', '#0088ff'); // BLUE
-      }
-      if (surfaceB) {
-        surfaceB.setAttribute('color', '#ffff00'); // YELLOW
-      }
-      
-      document.getElementById('reaction-status').textContent = 'Blue + Yellow = Green';
-      document.getElementById('reaction-status').style.color = 'white';
-    }
-
-    // COMPLETE CHEMICAL REACTION
-    function completeChemicalReaction() {
+    // START CHEMICAL REACTION
+    function startChemicalReaction() {
       if (reactionStarted) return;
       
       reactionStarted = true;
-      
-      console.log('REACTION COMPLETED!');
+      console.log('REACTION STARTING!');
       
       // Update UI
-      document.getElementById('experiment-status').textContent = '⚗️ REACTION COMPLETE!';
+      document.getElementById('experiment-status').textContent = '⚗️ REACTION IN PROGRESS!';
       document.getElementById('experiment-status').style.color = '#00ff00';
-      document.getElementById('reaction-status').textContent = 'Complete: Blue + Yellow = Green!';
+      document.getElementById('reaction-status').textContent = 'Blue + Yellow = Green!';
       document.getElementById('reaction-status').style.color = '#00ff00';
-      updateInteraction('⚗️ Chemical Reaction Complete!');
+      updateInteraction('⚗️ Chemical Reaction: Blue + Yellow = Green');
       
       // Move tubes together
       moveTubesTogether();
       
-      // Create final mixing effects
-      createFinalMixingEffects();
+      // Start color change
+      startColorChange();
+      
+      // Create mixing effects
+      createMixingEffects();
     }
 
     function moveTubesTogether() {
@@ -346,68 +305,68 @@
       tubeAElement.setAttribute('animation', {
         property: 'position',
         to: `${posB.x} ${posB.y} ${posB.z}`,
-        dur: 500,
-        easing: 'easeInOutQuad'
-      });
-      
-      // Return to upright position
-      tubeAElement.setAttribute('animation__rotation', {
-        property: 'rotation',
-        to: '0 0 0',
-        dur: 500,
+        dur: 800,
         easing: 'easeInOutQuad'
       });
     }
 
-    function createMixingEffect() {
-      if (!tubeAElement) return;
-      
-      const bubble = document.createElement('a-sphere');
-      bubble.setAttribute('radius', '0.01');
-      
-      // Color based on current mixing state
+    function startColorChange() {
+      // Get liquid elements
       const liquidA = document.querySelector('#liquidA');
-      const color = liquidA ? liquidA.getAttribute('color') : '#00ff00';
+      const liquidB = document.querySelector('#liquidB');
+      const surfaceA = document.querySelector('#surfaceA');
+      const surfaceB = document.querySelector('#surfaceB');
       
-      bubble.setAttribute('color', color);
-      bubble.setAttribute('opacity', '0.6');
+      if (!liquidA || !liquidB) return;
       
-      const pos = tubeAElement.object3D.position;
-      bubble.setAttribute('position', {
-        x: pos.x + (Math.random() - 0.5) * 0.1,
-        y: pos.y + 0.2,
-        z: pos.z + (Math.random() - 0.5) * 0.1
-      });
+      let progress = 0;
+      const steps = 60;
+      const stepDuration = 30; // Faster transition
       
-      bubble.setAttribute('animation', {
-        property: 'position',
-        to: `${pos.x} ${pos.y + 0.4} ${pos.z}`,
-        dur: 1000,
-        easing: 'easeOutQuad'
-      });
-      
-      bubble.setAttribute('animation__opacity', {
-        property: 'opacity',
-        from: '0.6',
-        to: '0',
-        dur: 1000
-      });
-      
-      document.querySelector('a-scene').appendChild(bubble);
-      
-      // Remove after animation
-      setTimeout(() => {
-        if (bubble.parentNode) {
-          bubble.parentNode.removeChild(bubble);
+      const colorChangeInterval = setInterval(() => {
+        progress++;
+        
+        if (progress > steps) {
+          clearInterval(colorChangeInterval);
+          return;
         }
-      }, 1000);
+        
+        const t = progress / steps;
+        
+        // Blue (0, 136, 255) to Green (0, 255, 0)
+        const rA = Math.floor(0 * (1 - t));
+        const gA = Math.floor(136 + (255 - 136) * t);
+        const bA = Math.floor(255 * (1 - t));
+        
+        // Yellow (255, 255, 0) to Green (0, 255, 0)
+        const rB = Math.floor(255 * (1 - t));
+        const gB = Math.floor(255); // Stay at max green
+        const bB = Math.floor(0);
+        
+        const colorA = `rgb(${rA}, ${gA}, ${bA})`;
+        const colorB = `rgb(${rB}, ${gB}, ${bB})`;
+        
+        // Update colors
+        liquidA.setAttribute('color', colorA);
+        liquidB.setAttribute('color', colorB);
+        
+        if (surfaceA) surfaceA.setAttribute('color', colorA);
+        if (surfaceB) surfaceB.setAttribute('color', colorB);
+        
+        // Add glow effect
+        liquidA.setAttribute('emissive', colorA);
+        liquidB.setAttribute('emissive', colorB);
+        liquidA.setAttribute('emissive-intensity', t * 0.7);
+        liquidB.setAttribute('emissive-intensity', t * 0.7);
+        
+      }, stepDuration);
     }
 
-    function createFinalMixingEffects() {
+    function createMixingEffects() {
       // Create bubbles
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 40; i++) {
         setTimeout(() => {
-          createFinalBubble(i);
+          createBubble(i);
         }, i * 50);
       }
       
@@ -416,24 +375,26 @@
         createConnectionEffect();
       }, 300);
       
-      // Create particle explosion
+      // Create explosion effect
       setTimeout(() => {
-        createParticleExplosion();
-      }, 500);
+        createExplosionEffect();
+      }, 600);
     }
 
-    function createFinalBubble(index) {
+    function createBubble(index) {
       const bubble = document.createElement('a-sphere');
       bubble.setAttribute('radius', '0.02');
       bubble.setAttribute('color', '#00ff00');
       bubble.setAttribute('opacity', '0.8');
+      bubble.setAttribute('metalness', '0.3');
+      bubble.setAttribute('roughness', '0.2');
       
       if (tubeAElement) {
         const pos = tubeAElement.object3D.position;
         bubble.setAttribute('position', {
-          x: pos.x + (Math.random() - 0.5) * 0.2,
-          y: pos.y + 0.3,
-          z: pos.z + (Math.random() - 0.5) * 0.2
+          x: pos.x + (Math.random() - 0.5) * 0.15,
+          y: pos.y + 0.2,
+          z: pos.z + (Math.random() - 0.5) * 0.15
         });
       }
       
@@ -451,6 +412,13 @@
         dur: 1500
       });
       
+      bubble.setAttribute('animation__scale', {
+        property: 'scale',
+        from: '1 1 1',
+        to: '1.5 1.5 1.5',
+        dur: 1500
+      });
+      
       document.querySelector('a-scene').appendChild(bubble);
       
       // Remove after animation
@@ -465,15 +433,16 @@
       if (!tubeAElement || !tubeBElement) return;
       
       const connection = document.createElement('a-cylinder');
-      connection.setAttribute('radius', '0.02');
-      connection.setAttribute('height', '0.3');
+      connection.setAttribute('radius', '0.015');
+      connection.setAttribute('height', '0.25');
       connection.setAttribute('color', '#00ff00');
-      connection.setAttribute('opacity', '0.6');
+      connection.setAttribute('opacity', '0.7');
+      connection.setAttribute('metalness', '0.5');
       
       const posA = tubeAElement.object3D.position;
       const posB = tubeBElement.object3D.position;
       const midX = (posA.x + posB.x) / 2;
-      const midY = (posA.y + posB.y) / 2;
+      const midY = (posA.y + posB.y) / 2 + 0.1;
       const midZ = (posA.z + posB.z) / 2;
       
       connection.setAttribute('position', { x: midX, y: midY, z: midZ });
@@ -486,6 +455,14 @@
       
       document.querySelector('a-scene').appendChild(connection);
       
+      // Add animation
+      connection.setAttribute('animation__opacity', {
+        property: 'opacity',
+        from: '0.7',
+        to: '0',
+        dur: 800
+      });
+      
       // Remove after animation
       setTimeout(() => {
         if (connection.parentNode) {
@@ -494,52 +471,60 @@
       }, 800);
     }
 
-    function createParticleExplosion() {
-      for (let i = 0; i < 15; i++) {
+    function createExplosionEffect() {
+      const particles = 15;
+      
+      for (let i = 0; i < particles; i++) {
+        const particle = document.createElement('a-sphere');
+        particle.setAttribute('radius', '0.015');
+        particle.setAttribute('color', '#00ff00');
+        particle.setAttribute('opacity', '0.9');
+        particle.setAttribute('metalness', '0.4');
+        
+        if (tubeAElement) {
+          const pos = tubeAElement.object3D.position;
+          particle.setAttribute('position', {
+            x: pos.x,
+            y: pos.y + 0.3,
+            z: pos.z
+          });
+          
+          // Random direction
+          const angle = Math.random() * Math.PI * 2;
+          const radius = 0.25 + Math.random() * 0.2;
+          const targetX = pos.x + Math.cos(angle) * radius;
+          const targetZ = pos.z + Math.sin(angle) * radius;
+          
+          particle.setAttribute('animation', {
+            property: 'position',
+            to: `${targetX} ${pos.y + 0.5} ${targetZ}`,
+            dur: 1200,
+            easing: 'easeOutQuad'
+          });
+          
+          particle.setAttribute('animation__opacity', {
+            property: 'opacity',
+            from: '0.9',
+            to: '0',
+            dur: 1200
+          });
+          
+          particle.setAttribute('animation__scale', {
+            property: 'scale',
+            from: '1 1 1',
+            to: '0.3 0.3 0.3',
+            dur: 1200
+          });
+        }
+        
+        document.querySelector('a-scene').appendChild(particle);
+        
+        // Remove after animation
         setTimeout(() => {
-          const particle = document.createElement('a-sphere');
-          particle.setAttribute('radius', '0.01');
-          particle.setAttribute('color', '#00ff00');
-          particle.setAttribute('opacity', '0.7');
-          
-          if (tubeAElement) {
-            const pos = tubeAElement.object3D.position;
-            particle.setAttribute('position', {
-              x: pos.x,
-              y: pos.y + 0.3,
-              z: pos.z
-            });
-            
-            // Random direction
-            const angle = Math.random() * Math.PI * 2;
-            const distance = 0.2 + Math.random() * 0.2;
-            const targetX = pos.x + Math.cos(angle) * distance;
-            const targetZ = pos.z + Math.sin(angle) * distance;
-            
-            particle.setAttribute('animation', {
-              property: 'position',
-              to: `${targetX} ${pos.y + 0.5} ${targetZ}`,
-              dur: 1000,
-              easing: 'easeOutQuad'
-            });
-            
-            particle.setAttribute('animation__opacity', {
-              property: 'opacity',
-              from: '0.7',
-              to: '0',
-              dur: 1000
-            });
+          if (particle.parentNode) {
+            particle.parentNode.removeChild(particle);
           }
-          
-          document.querySelector('a-scene').appendChild(particle);
-          
-          // Remove after animation
-          setTimeout(() => {
-            if (particle.parentNode) {
-              particle.parentNode.removeChild(particle);
-            }
-          }, 1000);
-        }, i * 50);
+        }, 1200);
       }
     }
 
@@ -576,6 +561,7 @@
       
       reactionStarted = false;
       isDragging = false;
+      isOverYellowTube = false;
       
       // Reset tube positions
       if (tubeAElement) {
@@ -584,12 +570,38 @@
       }
       
       // Reset liquid colors
-      resetReactionColors();
+      const liquidA = document.querySelector('#liquidA');
+      const liquidB = document.querySelector('#liquidB');
+      const surfaceA = document.querySelector('#surfaceA');
+      const surfaceB = document.querySelector('#surfaceB');
       
-      // Reset tube B glow
+      if (liquidA) {
+        liquidA.setAttribute('color', '#0088ff'); // BLUE
+        liquidA.setAttribute('emissive', '#000000');
+        liquidA.setAttribute('emissive-intensity', '0');
+      }
+      if (liquidB) {
+        liquidB.setAttribute('color', '#ffff00'); // YELLOW
+        liquidB.setAttribute('emissive', '#000000');
+        liquidB.setAttribute('emissive-intensity', '0');
+      }
+      if (surfaceA) {
+        surfaceA.setAttribute('color', '#0088ff'); // BLUE
+      }
+      if (surfaceB) {
+        surfaceB.setAttribute('color', '#ffff00'); // YELLOW
+      }
+      
+      // Reset glow effects
       const tubeBGlow = document.querySelector('#tubeB-glow');
       if (tubeBGlow) {
         tubeBGlow.setAttribute('opacity', '0');
+        tubeBGlow.setAttribute('color', '#ff9900');
+      }
+      
+      const tubeAGlow = document.querySelector('#tubeA-glow');
+      if (tubeAGlow) {
+        tubeAGlow.setAttribute('opacity', '0');
       }
       
       // Reset UI
@@ -672,6 +684,18 @@
           opacity="0.95"
           rotation="-90 0 0">
         </a-circle>
+
+        <!-- Blue tube glow (for proximity feedback) -->
+        <a-ring
+          id="tubeA-glow"
+          radius-inner="0.14"
+          radius-outer="0.15"
+          position="0 0.3 0"
+          rotation="-90 0 0"
+          color="#0088ff"
+          opacity="0"
+          transparent="true">
+        </a-ring>
 
       </a-entity>
 
