@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Fixed Sensitivity</title>
+  <title>AR Chemical Mixing – Correct Drag Direction</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -65,11 +65,16 @@
     button:hover {
       background: #45a049;
     }
-    .control-button {
-      background: #2196F3;
-      margin: 2px;
-      padding: 4px 8px;
-      font-size: 11px;
+    .direction-test {
+      position: absolute;
+      top: 200px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 14px;
+      z-index: 1000;
     }
   </style>
 
@@ -83,15 +88,15 @@
     let tubeBElement = null;
     
     // Drag tracking
-    let lastTouchX = 0;
-    let lastTouchY = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let tubeStartPos = {x: 0, y: 0, z: 0};
     
-    // Movement boundaries (so tube doesn't go off screen)
-    const BOUNDARY_X = 1.5; // Max left/right movement
-    const BOUNDARY_Z = 1.5; // Max forward/back movement
-    
-    // Sensitivity settings
-    let sensitivity = 0.001; // VERY LOW sensitivity
+    // Movement settings
+    const MIN_DRAG_DISTANCE = 20; // pixels - must move this much to start dragging
+    let invertX = -1; // CHANGE THIS: -1 means left moves left, 1 means left moves right
+    let invertZ = 1;
     
     // Colors
     const BLUE_COLOR = '#0088ff';
@@ -117,7 +122,7 @@
           document.getElementById('marker-b-status').textContent = '✅ Found';
         }
         updateStatus();
-        updateControlInfo();
+        updateDirectionInfo();
       });
 
       // MARKER LOST
@@ -134,16 +139,16 @@
           document.getElementById('marker-b-status').textContent = '❌ Not found';
         }
         updateStatus();
-        updateControlInfo();
+        updateDirectionInfo();
       });
       
-      // ========== FIXED SENSITIVITY DRAG ==========
-      // TOUCH START
+      // ========== CORRECT DRAG DIRECTION ==========
+      // TOUCH START - Just store position, don't start dragging yet
       scene.addEventListener('touchstart', function(e) {
-        console.log('=== TOUCH START ===');
+        console.log('=== TOUCH START (waiting for drag) ===');
         
         if (reactionStarted || !tubeAVisible || !tubeBVisible) {
-          console.log('Cannot drag');
+          console.log('Cannot start drag');
           return;
         }
         
@@ -151,19 +156,26 @@
         e.stopPropagation();
         
         const touch = e.touches[0];
-        lastTouchX = touch.clientX;
-        lastTouchY = touch.clientY;
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        touchStartTime = Date.now();
         
-        isDragging = true;
-        console.log('Drag started - Sensitivity:', sensitivity);
+        // Store tube's current position
+        if (tubeAElement && tubeAElement.object3D) {
+          const pos = tubeAElement.object3D.position;
+          tubeStartPos = {x: pos.x, y: pos.y, z: pos.z};
+        }
         
-        updateInteraction('Dragging with LOW sensitivity...');
+        // NOT dragging yet - waiting for actual movement
+        isDragging = false;
+        
+        updateInteraction('Touch & MOVE finger to drag');
         updateStatus();
       });
       
-      // TOUCH MOVE - FIXED SENSITIVITY
+      // TOUCH MOVE - Only start dragging after significant movement
       scene.addEventListener('touchmove', function(e) {
-        if (!isDragging || !tubeAElement || !tubeBElement) {
+        if (reactionStarted || !tubeAElement) {
           return;
         }
         
@@ -174,52 +186,55 @@
         const currentX = touch.clientX;
         const currentY = touch.clientY;
         
-        // Calculate small movement delta
-        const deltaX = currentX - lastTouchX;
-        const deltaY = currentY - lastTouchY;
+        // Calculate how far finger has moved
+        const deltaX = currentX - touchStartX;
+        const deltaY = currentY - touchStartY;
+        const totalMovement = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
         
-        // Apply VERY LOW sensitivity
-        const moveX = deltaX * sensitivity;
-        const moveZ = -deltaY * sensitivity; // Negative for natural movement
+        // Only start dragging if finger has moved enough
+        if (!isDragging && totalMovement > MIN_DRAG_DISTANCE) {
+          console.log('Actual drag started - movement:', totalMovement.toFixed(0), 'pixels');
+          isDragging = true;
+          updateInteraction('Dragging... Move finger RIGHT to go right');
+        }
         
-        console.log('Delta:', deltaX, deltaY, 'Move:', moveX.toFixed(4), moveZ.toFixed(4));
-        
-        // Get current position
-        const currentPos = tubeAElement.object3D.position;
-        
-        // Calculate new position
-        let newX = currentPos.x + moveX;
-        let newZ = currentPos.z + moveZ;
-        
-        // Apply boundaries - keep tube on screen
-        newX = Math.max(-BOUNDARY_X, Math.min(BOUNDARY_X, newX));
-        newZ = Math.max(-BOUNDARY_Z, Math.min(BOUNDARY_Z, newZ));
-        
-        // Update tube position
-        tubeAElement.object3D.position.x = newX;
-        tubeAElement.object3D.position.z = newZ;
-        
-        // Gentle tilt effect
-        tubeAElement.setAttribute('rotation', '-10 0 0');
-        
-        // Update touch position for next move
-        lastTouchX = currentX;
-        lastTouchY = currentY;
-        
-        // Update control info
-        updateControlInfo();
-        
-        // Check distance
-        checkDistance();
+        // If we're dragging, update tube position
+        if (isDragging) {
+          // Apply inversion to fix direction
+          const moveX = deltaX * 0.002 * invertX; // invertX controls direction
+          const moveZ = -deltaY * 0.002 * invertZ; // Negative for natural up/down
+          
+          // Calculate new position
+          const newX = tubeStartPos.x + moveX;
+          const newZ = tubeStartPos.z + moveZ;
+          
+          // Update tube position
+          tubeAElement.object3D.position.x = newX;
+          tubeAElement.object3D.position.z = newZ;
+          
+          // Gentle tilt
+          tubeAElement.setAttribute('rotation', '-10 0 0');
+          
+          // Update direction info
+          updateDirectionInfo();
+          
+          // Check distance
+          checkDistance();
+          
+          console.log('Finger moved:', deltaX > 0 ? 'RIGHT' : 'LEFT', deltaX, 
+                     '| Tube moving:', moveX > 0 ? 'RIGHT' : 'LEFT', moveX.toFixed(3));
+        }
       });
       
       // TOUCH END
       scene.addEventListener('touchend', function(e) {
         if (!isDragging) {
+          console.log('Touch ended - no significant drag');
+          updateInteraction('Touch & MOVE finger to drag');
           return;
         }
         
-        console.log('=== TOUCH END ===');
+        console.log('=== DRAG ENDED ===');
         
         isDragging = false;
         
@@ -237,7 +252,7 @@
           startReaction();
         } else {
           console.log('Not close enough. Distance:', currentDistance);
-          updateInteraction('Drag slowly toward yellow tube');
+          updateInteraction('Drag blue tube toward yellow');
         }
         
         updateStatus();
@@ -269,72 +284,70 @@
     // CHECK DISTANCE
     function checkDistance() {
       const distance = getDistance();
-      const posA = tubeAElement.object3D.position;
-      const posB = tubeBElement.object3D.position;
       
       // Update control panel
-      document.getElementById('control-positions').innerHTML = 
-        'Blue: (' + posA.x.toFixed(2) + ', ' + posA.z.toFixed(2) + ')<br>' +
-        'Yellow: (' + posB.x.toFixed(2) + ', ' + posB.z.toFixed(2) + ')';
-      
       document.getElementById('control-distance').innerHTML = 
         'Distance: ' + distance.toFixed(2);
+      
+      // Update direction test
+      const posA = tubeAElement.object3D.position;
+      const posB = tubeBElement.object3D.position;
+      document.getElementById('test-positions').innerHTML = 
+        'Blue: (' + posA.x.toFixed(2) + ', ' + posA.z.toFixed(2) + ')<br>' +
+        'Yellow: (' + posB.x.toFixed(2) + ', ' + posB.z.toFixed(2) + ')';
       
       // Update status
       if (distance < 0.3) {
         document.getElementById('experiment-status').textContent = '✅ TOUCHING! Release now';
         document.getElementById('experiment-status').style.color = GREEN_COLOR;
-        document.getElementById('control-feedback').innerHTML = '✅ PERFECT! Release for reaction';
-        document.getElementById('control-feedback').style.color = GREEN_COLOR;
+        document.getElementById('test-feedback').innerHTML = '✅ PERFECT! Release for reaction';
+        document.getElementById('test-feedback').style.color = GREEN_COLOR;
       } else if (distance < 0.8) {
         document.getElementById('experiment-status').textContent = '⚠️ Getting close...';
         document.getElementById('experiment-status').style.color = '#ff9900';
-        document.getElementById('control-feedback').innerHTML = '⚠️ Almost there! Keep dragging slowly';
-        document.getElementById('control-feedback').style.color = '#ff9900';
+        document.getElementById('test-feedback').innerHTML = '⚠️ Almost there!';
+        document.getElementById('test-feedback').style.color = '#ff9900';
       } else {
-        document.getElementById('experiment-status').textContent = 'Dragging slowly...';
+        document.getElementById('experiment-status').textContent = 'Dragging...';
         document.getElementById('experiment-status').style.color = '#ffffff';
-        document.getElementById('control-feedback').innerHTML = '❌ Still far. Drag toward yellow';
-        document.getElementById('control-feedback').style.color = '#ff4444';
+        document.getElementById('test-feedback').innerHTML = '❌ Still far';
+        document.getElementById('test-feedback').style.color = '#ff4444';
       }
     }
 
-    // UPDATE CONTROL INFO
-    function updateControlInfo() {
-      document.getElementById('control-sensitivity').innerHTML = 
-        'Sensitivity: ' + sensitivity.toFixed(4) + '<br>' +
-        'Boundaries: X:±' + BOUNDARY_X + ', Z:±' + BOUNDARY_Z;
+    // UPDATE DIRECTION INFO
+    function updateDirectionInfo() {
+      document.getElementById('direction-info').innerHTML = 
+        'Direction Settings:<br>' +
+        'X Direction: ' + (invertX === 1 ? 'Normal' : 'INVERTED') + '<br>' +
+        'Z Direction: ' + (invertZ === 1 ? 'Normal' : 'INVERTED') + '<br>' +
+        'Min Drag: ' + MIN_DRAG_DISTANCE + ' pixels';
     }
 
-    // SENSITIVITY CONTROLS
-    window.decreaseSensitivity = function() {
-      sensitivity = Math.max(0.0001, sensitivity * 0.5); // Half the sensitivity
-      console.log('Sensitivity decreased to:', sensitivity);
-      updateControlInfo();
+    // DIRECTION CONTROLS
+    window.fixLeftRight = function() {
+      // Try different X inversion settings
+      if (invertX === 1) {
+        invertX = -1;
+        console.log('Setting X to INVERTED (left moves left)');
+      } else {
+        invertX = 1;
+        console.log('Setting X to NORMAL (left moves right)');
+      }
+      updateDirectionInfo();
+      updateInteraction('Test: Move finger RIGHT, tube should go RIGHT');
     };
     
-    window.increaseSensitivity = function() {
-      sensitivity = Math.min(0.01, sensitivity * 2); // Double the sensitivity
-      console.log('Sensitivity increased to:', sensitivity);
-      updateControlInfo();
-    };
-    
-    window.setVeryLowSensitivity = function() {
-      sensitivity = 0.0005; // Very low
-      console.log('Sensitivity set to VERY LOW:', sensitivity);
-      updateControlInfo();
-    };
-    
-    window.setLowSensitivity = function() {
-      sensitivity = 0.001; // Low
-      console.log('Sensitivity set to LOW:', sensitivity);
-      updateControlInfo();
-    };
-    
-    window.setMediumSensitivity = function() {
-      sensitivity = 0.002; // Medium
-      console.log('Sensitivity set to MEDIUM:', sensitivity);
-      updateControlInfo();
+    window.fixUpDown = function() {
+      // Try different Z inversion settings
+      if (invertZ === 1) {
+        invertZ = -1;
+        console.log('Setting Z to INVERTED');
+      } else {
+        invertZ = 1;
+        console.log('Setting Z to NORMAL');
+      }
+      updateDirectionInfo();
     };
 
     // START REACTION
@@ -454,9 +467,9 @@
         if (reactionStarted) {
           status.textContent = '⚗️ REACTION COMPLETE';
         } else if (isDragging) {
-          status.textContent = 'Dragging slowly...';
+          status.textContent = 'Dragging...';
         } else {
-          status.textContent = 'Ready - Drag gently';
+          status.textContent = 'Ready - Touch & MOVE';
         }
       } else if (tubeAVisible) {
         status.textContent = 'Blue tube found';
@@ -485,6 +498,7 @@
       if (tubeAElement) {
         tubeAElement.object3D.position.set(0, 0, 0);
         tubeAElement.setAttribute('rotation', '0 0 0');
+        tubeStartPos = {x: 0, y: 0, z: 0};
       }
       
       // Reset colors
@@ -518,18 +532,19 @@
         tubeBGlow.setAttribute('opacity', '0');
       }
       
-      // Reset sensitivity to default
-      sensitivity = 0.001;
+      // Reset direction (try different settings)
+      invertX = -1; // Start with inverted
+      invertZ = 1;
       
       // Reset UI
-      document.getElementById('experiment-status').textContent = 'Ready - Drag gently';
+      document.getElementById('experiment-status').textContent = 'Ready - Touch & MOVE';
       document.getElementById('experiment-status').style.color = 'white';
       document.getElementById('reaction-status').textContent = 'Blue + Yellow = Green';
       document.getElementById('reaction-status').style.color = 'white';
       
-      updateInteraction('Use sensitivity controls if needed');
+      updateInteraction('Touch & MOVE finger to drag');
       updateStatus();
-      updateControlInfo();
+      updateDirectionInfo();
     };
 
   </script>
@@ -551,23 +566,26 @@
   
   <!-- Control Panel -->
   <div class="control-panel">
-    <div><strong>CONTROL PANEL</strong></div>
-    <div id="control-sensitivity">Sensitivity: --</div>
+    <div><strong>DIRECTION FIX</strong></div>
+    <div id="direction-info">Direction: Testing...</div>
     <div style="margin: 5px 0;">
-      <button class="control-button" onclick="setVeryLowSensitivity()">Very Low</button>
-      <button class="control-button" onclick="setLowSensitivity()">Low</button>
-      <button class="control-button" onclick="setMediumSensitivity()">Medium</button>
-      <button class="control-button" onclick="decreaseSensitivity()">- Less</button>
-      <button class="control-button" onclick="increaseSensitivity()">+ More</button>
+      <button onclick="fixLeftRight()">Fix LEFT/RIGHT</button>
+      <button onclick="fixUpDown()">Fix UP/DOWN</button>
     </div>
-    <div id="control-positions">Positions: --</div>
     <div id="control-distance">Distance: --</div>
-    <div id="control-feedback">Feedback: --</div>
+  </div>
+  
+  <!-- Direction Test Panel -->
+  <div class="direction-test">
+    <div><strong>TEST: Move finger RIGHT</strong></div>
+    <div>Tube should move RIGHT</div>
+    <div id="test-positions">Positions: --</div>
+    <div id="test-feedback">Test feedback: --</div>
   </div>
   
   <!-- Interaction Indicator -->
   <div class="interaction-indicator">
-    Scan both markers, then drag GENTLY
+    Touch & MOVE finger (don't just touch)
   </div>
 
   <a-scene
