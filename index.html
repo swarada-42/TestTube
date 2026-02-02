@@ -69,7 +69,7 @@
     let touchStartY = 0;
     let tubeAStartPos = { x: 0, y: 0, z: 0 };
 
-    // MARKER TRACKING - SIMPLE
+    // MARKER TRACKING
     document.addEventListener('DOMContentLoaded', function() {
       // Wait for A-Frame to load
       setTimeout(() => {
@@ -112,9 +112,17 @@
           }
         });
         
-        // SIMPLE TOUCH DRAG
+        // FIXED: TOUCH START - Only start dragging if reaction hasn't started
         scene.addEventListener('touchstart', function(e) {
-          if (!tubeAVisible || !tubeBVisible || reactionStarted) return;
+          if (reactionStarted) {
+            console.log('Reaction already started, cannot drag');
+            return;
+          }
+          
+          if (!tubeAVisible || !tubeBVisible) {
+            console.log('Both tubes not visible');
+            return;
+          }
           
           e.preventDefault();
           const touch = e.touches[0];
@@ -125,6 +133,7 @@
           if (tubeAElement && tubeAElement.object3D) {
             const pos = tubeAElement.object3D.position;
             tubeAStartPos = { x: pos.x, y: pos.y, z: pos.z };
+            console.log('Starting drag from position:', tubeAStartPos);
           }
           
           isDragging = true;
@@ -132,8 +141,17 @@
           updateInteraction('Dragging Blue Tube... Move it over Yellow Tube');
         });
         
+        // FIXED: TOUCH MOVE - Only drag if isDragging is true
         scene.addEventListener('touchmove', function(e) {
-          if (!isDragging || !tubeAElement || reactionStarted) return;
+          if (!isDragging || reactionStarted) {
+            console.log('Not dragging or reaction started');
+            return;
+          }
+          
+          if (!tubeAElement) {
+            console.log('Tube A element not found');
+            return;
+          }
           
           e.preventDefault();
           const touch = e.touches[0];
@@ -155,23 +173,34 @@
           checkMixingProximity();
         });
         
+        // FIXED: TOUCH END - Handle drag end
         scene.addEventListener('touchend', function(e) {
           if (!isDragging) return;
           
           isDragging = false;
           
           // Check if tubes are close enough for reaction
-          if (checkMixingDistance()) {
+          const isCloseEnough = checkMixingDistance();
+          console.log('Drag ended. Close enough for reaction?', isCloseEnough);
+          
+          if (isCloseEnough) {
+            console.log('Starting reaction...');
             startChemicalReaction();
           } else {
+            console.log('Returning tube to start position');
             // Return to original position (NO REACTION)
             if (tubeAElement) {
               tubeAElement.setAttribute('animation', {
                 property: 'position',
                 to: `${tubeAStartPos.x} ${tubeAStartPos.y} ${tubeAStartPos.z}`,
-                dur: 500
+                dur: 500,
+                easing: 'easeInOutQuad'
               });
-              tubeAElement.setAttribute('rotation', '0 0 0');
+              tubeAElement.setAttribute('animation__rotation', {
+                property: 'rotation',
+                to: '0 0 0',
+                dur: 300
+              });
             }
             
             // Reset any glow effects
@@ -184,6 +213,14 @@
             updateInteraction('Touch & drag Blue tube to Yellow tube');
           }
         });
+        
+        // Prevent any click events from interfering
+        scene.addEventListener('click', function(e) {
+          e.preventDefault();
+          console.log('Scene clicked, but doing nothing');
+          // Don't change colors on click!
+        });
+        
       }, 1000);
     });
 
@@ -199,6 +236,7 @@
         Math.pow(posA.z - posB.z, 2)
       );
       
+      console.log('Distance between tubes:', distance);
       return distance < 0.3; // Simple distance check
     }
 
@@ -218,7 +256,7 @@
         }
         
         // IMPORTANT: NO COLOR CHANGE WHILE DRAGGING!
-        // Only show glow, not change liquid colors
+        // Colors remain blue and yellow
         
       } else {
         document.getElementById('experiment-status').textContent = 'Dragging...';
@@ -233,9 +271,13 @@
 
     // CHEMICAL REACTION - ONLY STARTS WHEN RELEASED OVER YELLOW TUBE
     function startChemicalReaction() {
-      if (reactionStarted) return;
+      if (reactionStarted) {
+        console.log('Reaction already started');
+        return;
+      }
       
       reactionStarted = true;
+      isDragging = false;
       
       console.log('REACTION STARTING!');
       
@@ -249,7 +291,7 @@
       // Move tubes together
       moveTubesTogether();
       
-      // Start color change (THIS IS WHERE COLOR CHANGES TO GREEN)
+      // Start color change (THIS IS WHERE COLOR CHANGES TO GREEN - FIRST TIME!)
       startColorChange();
       
       // Create mixing effects
@@ -265,7 +307,7 @@
       tubeAElement.setAttribute('animation', {
         property: 'position',
         to: `${posB.x} ${posB.y} ${posB.z}`,
-        dur: 1000,
+        dur: 800,
         easing: 'easeInOutQuad'
       });
       
@@ -273,47 +315,53 @@
       tubeAElement.setAttribute('animation__rotation', {
         property: 'rotation',
         to: '0 0 0',
-        dur: 500
+        dur: 400
       });
     }
 
     function startColorChange() {
+      console.log('Starting color change to green...');
+      
       // Get liquid elements
       const liquidA = document.querySelector('#liquidA');
       const liquidB = document.querySelector('#liquidB');
       const surfaceA = document.querySelector('#surfaceA');
       const surfaceB = document.querySelector('#surfaceB');
       
-      if (!liquidA || !liquidB) return;
+      if (!liquidA || !liquidB) {
+        console.log('Liquid elements not found');
+        return;
+      }
       
       let progress = 0;
-      const steps = 50;
-      const stepDuration = 50;
+      const steps = 60;
+      const stepDuration = 40;
       
       const colorChangeInterval = setInterval(() => {
         progress++;
         
         if (progress > steps) {
           clearInterval(colorChangeInterval);
+          console.log('Color change complete');
           return;
         }
         
         const t = progress / steps;
         
-        // Blue (51, 154, 240) to Green (0, 200, 0)
-        const rA = Math.floor(51 * (1 - t));
-        const gA = Math.floor(154 + (200 - 154) * t);
-        const bA = Math.floor(240 * (1 - t));
+        // Blue (0, 136, 255) to Green (0, 255, 0)
+        const rA = Math.floor(0 * (1 - t));
+        const gA = Math.floor(136 + (255 - 136) * t);
+        const bA = Math.floor(255 * (1 - t));
         
-        // Yellow (255, 212, 59) to Green (0, 200, 0)
+        // Yellow (255, 255, 0) to Green (0, 255, 0)
         const rB = Math.floor(255 * (1 - t));
-        const gB = Math.floor(212 + (200 - 212) * t);
-        const bB = Math.floor(59 * (1 - t));
+        const gB = Math.floor(255); // Stay at max green
+        const bB = Math.floor(0);
         
         const colorA = `rgb(${rA}, ${gA}, ${bA})`;
         const colorB = `rgb(${rB}, ${gB}, ${bB})`;
         
-        // Update colors (THIS IS WHERE GREEN COLOR APPEARS)
+        // Update colors (THIS IS WHERE GREEN COLOR APPEARS - ONLY HERE!)
         liquidA.setAttribute('color', colorA);
         liquidB.setAttribute('color', colorB);
         
@@ -330,17 +378,19 @@
     }
 
     function createMixingEffects() {
+      console.log('Creating mixing effects...');
+      
       // Create bubbles
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 25; i++) {
         setTimeout(() => {
           createBubble(i);
-        }, i * 100);
+        }, i * 80);
       }
       
       // Create connection effect
       setTimeout(() => {
         createConnectionEffect();
-      }, 500);
+      }, 400);
     }
 
     function createBubble(index) {
@@ -361,7 +411,7 @@
       bubble.setAttribute('animation', {
         property: 'position',
         to: '0 0.8 0',
-        dur: 2000,
+        dur: 1800,
         easing: 'easeOutQuad'
       });
       
@@ -369,7 +419,7 @@
         property: 'opacity',
         from: '0.8',
         to: '0',
-        dur: 2000
+        dur: 1800
       });
       
       document.querySelector('a-scene').appendChild(bubble);
@@ -379,7 +429,7 @@
         if (bubble.parentNode) {
           bubble.parentNode.removeChild(bubble);
         }
-      }, 2000);
+      }, 1800);
     }
 
     function createConnectionEffect() {
@@ -455,7 +505,7 @@
         tubeAElement.setAttribute('rotation', '0 0 0');
       }
       
-      // Reset liquid colors to original (NO GREEN)
+      // Reset liquid colors to original (BLUE and YELLOW)
       const liquidA = document.querySelector('#liquidA');
       const liquidB = document.querySelector('#liquidB');
       const surfaceA = document.querySelector('#surfaceA');
