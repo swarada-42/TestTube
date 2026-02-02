@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Fixed Drag Sensitivity</title>
+  <title>AR Chemical Mixing – Working Drag System</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -41,28 +41,6 @@
       text-align: center;
       max-width: 90%;
     }
-    .debug-info {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(0,0,0,0.7);
-      color: white;
-      padding: 5px 10px;
-      border-radius: 5px;
-      font-size: 12px;
-      z-index: 1000;
-    }
-    .distance-indicator {
-      position: absolute;
-      top: 150px;
-      left: 10px;
-      background: rgba(0,0,0,0.7);
-      color: white;
-      padding: 5px 10px;
-      border-radius: 5px;
-      font-size: 14px;
-      z-index: 1000;
-    }
     button {
       background: #4CAF50;
       color: white;
@@ -74,6 +52,17 @@
     }
     button:hover {
       background: #45a049;
+    }
+    .drag-handle {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px dashed #00ff00;
+      border-radius: 50%;
+      z-index: 999;
+      pointer-events: none;
+      display: none;
     }
   </style>
 
@@ -103,6 +92,9 @@
           tubeAVisible = true;
           tubeAElement = document.querySelector('#tubeA');
           document.getElementById('marker-a-status').textContent = '✅ Found';
+          
+          // Show drag instructions
+          updateInteraction('Touch and hold blue tube to drag');
         }
         if (markerId === 'markerB') {
           tubeBVisible = true;
@@ -110,7 +102,6 @@
           document.getElementById('marker-b-status').textContent = '✅ Found';
         }
         updateStatus();
-        updateDistanceDisplay();
       });
 
       // MARKER LOST
@@ -127,47 +118,41 @@
           document.getElementById('marker-b-status').textContent = '❌ Not found';
         }
         updateStatus();
-        updateDistanceDisplay();
       });
       
-      // ========== FIXED DRAG SYSTEM ==========
-      let touchStartScreenX = 0;
-      let touchStartScreenY = 0;
-      let tubeAOriginalPos = {x: 0, y: 0, z: 0};
-      
-      // TOUCH START
+      // ========== SIMPLE TOUCH-BASED DRAG ==========
+      // Touch anywhere on screen to drag blue tube
       scene.addEventListener('touchstart', function(e) {
-        console.log('=== TOUCH START ===');
+        console.log('Screen touched');
         
-        if (!tubeAVisible || !tubeBVisible || reactionStarted) {
-          console.log('Cannot drag:', {tubeAVisible, tubeBVisible, reactionStarted});
+        if (reactionStarted || !tubeAVisible || !tubeBVisible) {
+          console.log('Cannot drag:', {reactionStarted, tubeAVisible, tubeBVisible});
           return;
         }
         
         e.preventDefault();
         e.stopPropagation();
         
-        const touch = e.touches[0];
-        touchStartScreenX = touch.clientX;
-        touchStartScreenY = touch.clientY;
-        
-        // Store original position
-        if (tubeAElement && tubeAElement.object3D) {
-          const pos = tubeAElement.object3D.position;
-          tubeAOriginalPos = {x: pos.x, y: pos.y, z: pos.z};
-          console.log('Original position stored:', tubeAOriginalPos);
-        }
-        
+        // Start dragging
         isDragging = true;
         console.log('Drag started');
         
-        updateInteraction('Drag blue tube slowly toward yellow');
+        // Show drag handle
+        const dragHandle = document.querySelector('.drag-handle');
+        if (dragHandle) {
+          dragHandle.style.display = 'block';
+          const touch = e.touches[0];
+          dragHandle.style.left = (touch.clientX - 50) + 'px';
+          dragHandle.style.top = (touch.clientY - 50) + 'px';
+        }
+        
+        updateInteraction('Dragging... Move finger');
         updateStatus();
       });
       
-      // TOUCH MOVE - FIXED SENSITIVITY
+      // Move finger to drag
       scene.addEventListener('touchmove', function(e) {
-        if (!isDragging || !tubeAElement || reactionStarted) {
+        if (!isDragging || !tubeAElement) {
           return;
         }
         
@@ -175,59 +160,69 @@
         e.stopPropagation();
         
         const touch = e.touches[0];
-        const deltaX = touch.clientX - touchStartScreenX;
-        const deltaY = touch.clientY - touchStartScreenY;
         
-        // MUCH SLOWER movement - reduced sensitivity by 10x
-        const moveSpeed = 0.001; // Reduced from 0.01
-        const moveX = deltaX * moveSpeed;
-        const moveZ = deltaY * moveSpeed;
+        // Update drag handle position
+        const dragHandle = document.querySelector('.drag-handle');
+        if (dragHandle) {
+          dragHandle.style.left = (touch.clientX - 50) + 'px';
+          dragHandle.style.top = (touch.clientY - 50) + 'px';
+        }
         
-        // Update position RELATIVE to original position
-        tubeAElement.object3D.position.x = tubeAOriginalPos.x + moveX;
-        tubeAElement.object3D.position.z = tubeAOriginalPos.z + moveZ;
+        // Convert screen position to 3D position
+        // Simple formula: screen X -> 3D X, screen Y -> 3D Z
+        const screenX = touch.clientX / window.innerWidth;
+        const screenY = touch.clientY / window.innerHeight;
         
-        // Gentle tilt effect
-        tubeAElement.setAttribute('rotation', {
-          x: -10,
-          y: 0,
-          z: 0
-        });
+        // Map to 3D coordinates (-2 to 2 range)
+        const posX = (screenX - 0.5) * 4;
+        const posZ = -(screenY - 0.5) * 4; // Negative because screen Y goes down
         
-        // Update distance display
-        updateDistanceDisplay();
+        // Update tube position
+        tubeAElement.object3D.position.x = posX;
+        tubeAElement.object3D.position.z = posZ;
         
-        // Check for proximity
-        checkProximity();
+        // Tilt effect
+        tubeAElement.setAttribute('rotation', '-20 0 0');
         
-        console.log('Dragging - Move:', moveX.toFixed(3), moveZ.toFixed(3));
+        // Check distance
+        checkDistance();
+        
+        console.log('Dragging to:', posX.toFixed(2), posZ.toFixed(2));
       });
       
-      // TOUCH END
+      // Release touch
       scene.addEventListener('touchend', function(e) {
         if (!isDragging) {
           return;
         }
         
-        console.log('=== TOUCH END ===');
+        console.log('Drag ended');
         
         isDragging = false;
         
-        // Return to upright position
+        // Hide drag handle
+        const dragHandle = document.querySelector('.drag-handle');
+        if (dragHandle) {
+          dragHandle.style.display = 'none';
+        }
+        
+        // Return to upright
         if (tubeAElement) {
           tubeAElement.setAttribute('rotation', '0 0 0');
         }
         
         // Check for reaction
-        const currentDistance = getCurrentDistance();
-        console.log('Final distance:', currentDistance);
-        
-        if (!reactionStarted && currentDistance < 0.8) { // Increased threshold
-          console.log('Close enough! Starting reaction...');
-          startReaction();
-        } else {
-          console.log('Not close enough or reaction already started');
-          updateInteraction('Get closer to yellow tube');
+        if (!reactionStarted) {
+          const isClose = checkIfTubesAreClose();
+          console.log('Tubes close?', isClose);
+          
+          if (isClose) {
+            console.log('Starting reaction!');
+            startReaction();
+          } else {
+            console.log('Not close enough');
+            updateInteraction('Try again - get closer');
+          }
         }
         
         updateStatus();
@@ -237,13 +232,14 @@
       scene.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
+        console.log('Click prevented');
         return false;
       });
     });
 
-    // GET CURRENT DISTANCE
-    function getCurrentDistance() {
-      if (!tubeAElement || !tubeBElement) return 999;
+    // CHECK DISTANCE
+    function checkDistance() {
+      if (!tubeAElement || !tubeBElement) return;
       
       const posA = tubeAElement.object3D.position;
       const posB = tubeBElement.object3D.position;
@@ -253,48 +249,14 @@
         Math.pow(posA.z - posB.z, 2)
       );
       
-      return distance;
-    }
-
-    // UPDATE DISTANCE DISPLAY
-    function updateDistanceDisplay() {
-      const distance = getCurrentDistance();
-      const distanceDisplay = document.getElementById('distance-value');
+      console.log('Distance:', distance.toFixed(2));
       
-      if (distanceDisplay) {
-        distanceDisplay.textContent = distance.toFixed(2);
-        
-        // Color coding
-        if (distance < 0.8) {
-          distanceDisplay.style.color = '#00ff00';
-          distanceDisplay.innerHTML = distance.toFixed(2) + ' ✅ CLOSE!';
-        } else if (distance < 1.5) {
-          distanceDisplay.style.color = '#ff9900';
-          distanceDisplay.innerHTML = distance.toFixed(2) + ' ⚠️ Getting closer';
-        } else {
-          distanceDisplay.style.color = '#ff4444';
-          distanceDisplay.innerHTML = distance.toFixed(2) + ' ❌ Too far';
-        }
-      }
-      
-      // Update debug info
-      if (tubeAElement) {
-        const posA = tubeAElement.object3D.position;
-        document.getElementById('debug-position').textContent = 
-          'Blue: (' + posA.x.toFixed(2) + ', ' + posA.z.toFixed(2) + ')';
-      }
-    }
-
-    // CHECK PROXIMITY
-    function checkProximity() {
-      const distance = getCurrentDistance();
-      
-      // Update status based on distance
-      if (distance < 0.6) {
-        document.getElementById('experiment-status').textContent = 'VERY CLOSE! Release to mix';
+      // Update UI
+      if (distance < 0.5) {
+        document.getElementById('experiment-status').textContent = 'VERY CLOSE! Release now';
         document.getElementById('experiment-status').style.color = GREEN_COLOR;
         
-        // Strong glow
+        // Make yellow tube glow
         const tubeBGlow = document.querySelector('#tubeB-glow');
         if (tubeBGlow) {
           tubeBGlow.setAttribute('opacity', '1');
@@ -305,7 +267,6 @@
         document.getElementById('experiment-status').textContent = 'Getting close...';
         document.getElementById('experiment-status').style.color = '#ff9900';
         
-        // Medium glow
         const tubeBGlow = document.querySelector('#tubeB-glow');
         if (tubeBGlow) {
           tubeBGlow.setAttribute('opacity', '0.5');
@@ -316,12 +277,27 @@
         document.getElementById('experiment-status').textContent = 'Dragging...';
         document.getElementById('experiment-status').style.color = '#ffffff';
         
-        // No glow
-        const tubeBGlow = document.querySelector('#tubeB-glows');
+        const tubeBGlow = document.querySelector('#tubeB-glow');
         if (tubeBGlow) {
           tubeBGlow.setAttribute('opacity', '0');
         }
       }
+    }
+
+    // CHECK IF TUBES ARE CLOSE
+    function checkIfTubesAreClose() {
+      if (!tubeAElement || !tubeBElement) return false;
+      
+      const posA = tubeAElement.object3D.position;
+      const posB = tubeBElement.object3D.position;
+      
+      const distance = Math.sqrt(
+        Math.pow(posA.x - posB.x, 2) +
+        Math.pow(posA.z - posB.z, 2)
+      );
+      
+      console.log('Final distance:', distance.toFixed(2));
+      return distance < 0.6;
     }
 
     // START REACTION
@@ -329,7 +305,7 @@
       if (reactionStarted) return;
       
       reactionStarted = true;
-      console.log('=== CHEMICAL REACTION STARTING ===');
+      console.log('=== REACTION STARTING ===');
       
       // Update UI
       document.getElementById('experiment-status').textContent = '⚗️ REACTION!';
@@ -338,18 +314,18 @@
       document.getElementById('reaction-status').style.color = GREEN_COLOR;
       updateInteraction('Chemical reaction complete!');
       
-      // Move blue tube to yellow tube
+      // Move tubes together
       if (tubeAElement && tubeBElement) {
         const posB = tubeBElement.object3D.position;
         tubeAElement.setAttribute('animation', {
           property: 'position',
           to: `${posB.x} ${posB.y} ${posB.z}`,
-          dur: 1000,
+          dur: 800,
           easing: 'easeInOutQuad'
         });
       }
       
-      // Change to green color
+      // Change to green
       changeToGreen();
       
       // Create effects
@@ -395,12 +371,12 @@
     function createEffects() {
       console.log('Creating effects');
       
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 10; i++) {
         setTimeout(() => {
           const bubble = document.createElement('a-sphere');
-          bubble.setAttribute('radius', '0.02');
+          bubble.setAttribute('radius', '0.025');
           bubble.setAttribute('color', GREEN_COLOR);
-          bubble.setAttribute('opacity', '0.6');
+          bubble.setAttribute('opacity', '0.7');
           
           if (tubeAElement) {
             const pos = tubeAElement.object3D.position;
@@ -413,15 +389,15 @@
           
           bubble.setAttribute('animation', {
             property: 'position',
-            to: '0 0.8 0',
-            dur: 1500,
+            to: '0 1 0',
+            dur: 1200,
             easing: 'easeOutQuad'
           });
           
           bubble.setAttribute('animation__opacity', {
             property: 'opacity',
             to: '0',
-            dur: 1500
+            dur: 1200
           });
           
           document.querySelector('a-scene').appendChild(bubble);
@@ -430,8 +406,8 @@
             if (bubble.parentNode) {
               bubble.parentNode.removeChild(bubble);
             }
-          }, 1500);
-        }, i * 200);
+          }, 1200);
+        }, i * 150);
       }
     }
 
@@ -443,7 +419,7 @@
         } else if (isDragging) {
           status.textContent = 'Dragging...';
         } else {
-          status.textContent = 'Ready - Drag slowly';
+          status.textContent = 'Ready - Touch to drag';
         }
       } else if (tubeAVisible) {
         status.textContent = 'Blue tube found';
@@ -472,7 +448,6 @@
       if (tubeAElement) {
         tubeAElement.object3D.position.set(0, 0, 0);
         tubeAElement.setAttribute('rotation', '0 0 0');
-        tubeAOriginalPos = {x: 0, y: 0, z: 0};
       }
       
       // Reset colors
@@ -509,14 +484,13 @@
       }
       
       // Reset UI
-      document.getElementById('experiment-status').textContent = 'Ready - Drag slowly';
+      document.getElementById('experiment-status').textContent = 'Ready - Touch to drag';
       document.getElementById('experiment-status').style.color = 'white';
       document.getElementById('reaction-status').textContent = 'Blue + Yellow = Green';
       document.getElementById('reaction-status').style.color = 'white';
       
-      updateInteraction('Drag blue tube slowly toward yellow');
+      updateInteraction('Touch and hold blue tube to drag');
       updateStatus();
-      updateDistanceDisplay();
     };
 
   </script>
@@ -524,6 +498,9 @@
 </head>
 
 <body style="margin:0; overflow:hidden;">
+  <!-- Drag Handle (visual feedback) -->
+  <div class="drag-handle"></div>
+  
   <!-- HUD Display -->
   <div id="hud">
     <h3 style="margin: 0 0 10px 0;">🧪 Chemical Mixing</h3>
@@ -534,16 +511,6 @@
     <button onclick="resetExperiment()" style="margin-top: 5px;">
       Reset Experiment
     </button>
-  </div>
-  
-  <!-- Distance Indicator -->
-  <div class="distance-indicator">
-    Distance to yellow: <span id="distance-value">--</span>
-  </div>
-  
-  <!-- Debug Info -->
-  <div class="debug-info">
-    <div id="debug-position">Blue: (--, --)</div>
   </div>
   
   <!-- Interaction Indicator -->
@@ -658,7 +625,7 @@
 
         <!-- Yellow glow -->
         <a-ring
-          id="tubeB-glows"
+          id="tubeB-glow"
           radius-inner="0.14"
           radius-outer="0.15"
           position="0 0.3 0"
