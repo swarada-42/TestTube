@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AR Chemical Mixing – Inversion-Corrected</title>
+  <title>AR Chemical Mixing – Fixed Sensitivity</title>
 
   <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
@@ -41,7 +41,7 @@
       text-align: center;
       max-width: 90%;
     }
-    .test-panel {
+    .control-panel {
       position: absolute;
       top: 10px;
       right: 10px;
@@ -51,7 +51,7 @@
       border-radius: 5px;
       font-size: 12px;
       z-index: 1000;
-      max-width: 300px;
+      max-width: 250px;
     }
     button {
       background: #4CAF50;
@@ -65,7 +65,7 @@
     button:hover {
       background: #45a049;
     }
-    .test-button {
+    .control-button {
       background: #2196F3;
       margin: 2px;
       padding: 4px 8px;
@@ -82,10 +82,16 @@
     let tubeAElement = null;
     let tubeBElement = null;
     
-    // Inversion correction
-    let invertX = 1; // 1 = normal, -1 = inverted
-    let invertZ = 1; // 1 = normal, -1 = inverted
-    let invertDistance = false; // If true, farther = smaller distance
+    // Drag tracking
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+    
+    // Movement boundaries (so tube doesn't go off screen)
+    const BOUNDARY_X = 1.5; // Max left/right movement
+    const BOUNDARY_Z = 1.5; // Max forward/back movement
+    
+    // Sensitivity settings
+    let sensitivity = 0.001; // VERY LOW sensitivity
     
     // Colors
     const BLUE_COLOR = '#0088ff';
@@ -111,7 +117,7 @@
           document.getElementById('marker-b-status').textContent = '✅ Found';
         }
         updateStatus();
-        updateTestInfo();
+        updateControlInfo();
       });
 
       // MARKER LOST
@@ -128,10 +134,10 @@
           document.getElementById('marker-b-status').textContent = '❌ Not found';
         }
         updateStatus();
-        updateTestInfo();
+        updateControlInfo();
       });
       
-      // ========== INVERTED DRAG SYSTEM ==========
+      // ========== FIXED SENSITIVITY DRAG ==========
       // TOUCH START
       scene.addEventListener('touchstart', function(e) {
         console.log('=== TOUCH START ===');
@@ -144,14 +150,18 @@
         e.preventDefault();
         e.stopPropagation();
         
-        isDragging = true;
-        console.log('Drag started - Inversion: X=' + invertX + ', Z=' + invertZ);
+        const touch = e.touches[0];
+        lastTouchX = touch.clientX;
+        lastTouchY = touch.clientY;
         
-        updateInteraction('Testing inverted system...');
+        isDragging = true;
+        console.log('Drag started - Sensitivity:', sensitivity);
+        
+        updateInteraction('Dragging with LOW sensitivity...');
         updateStatus();
       });
       
-      // TOUCH MOVE - WITH INVERSION
+      // TOUCH MOVE - FIXED SENSITIVITY
       scene.addEventListener('touchmove', function(e) {
         if (!isDragging || !tubeAElement || !tubeBElement) {
           return;
@@ -161,34 +171,46 @@
         e.stopPropagation();
         
         const touch = e.touches[0];
+        const currentX = touch.clientX;
+        const currentY = touch.clientY;
         
-        // Get touch movement
-        const screenX = (touch.clientX / window.innerWidth - 0.5) * 2;
-        const screenY = (touch.clientY / window.innerHeight - 0.5) * 2;
+        // Calculate small movement delta
+        const deltaX = currentX - lastTouchX;
+        const deltaY = currentY - lastTouchY;
         
-        // Apply inversion corrections
-        const sensitivity = 0.3;
-        const moveX = screenX * sensitivity * invertX;
-        const moveZ = -screenY * sensitivity * invertZ; // Apply Z inversion
+        // Apply VERY LOW sensitivity
+        const moveX = deltaX * sensitivity;
+        const moveZ = -deltaY * sensitivity; // Negative for natural movement
         
-        // Get current positions
-        const posA = tubeAElement.object3D.position;
-        const posB = tubeBElement.object3D.position;
+        console.log('Delta:', deltaX, deltaY, 'Move:', moveX.toFixed(4), moveZ.toFixed(4));
         
-        // Move blue tube
-        tubeAElement.object3D.position.x = posA.x + moveX;
-        tubeAElement.object3D.position.z = posA.z + moveZ;
+        // Get current position
+        const currentPos = tubeAElement.object3D.position;
         
-        // Tilt effect
-        tubeAElement.setAttribute('rotation', '-15 0 0');
+        // Calculate new position
+        let newX = currentPos.x + moveX;
+        let newZ = currentPos.z + moveZ;
         
-        // Update test info
-        updateTestInfo();
+        // Apply boundaries - keep tube on screen
+        newX = Math.max(-BOUNDARY_X, Math.min(BOUNDARY_X, newX));
+        newZ = Math.max(-BOUNDARY_Z, Math.min(BOUNDARY_Z, newZ));
         
-        // Check what's happening
-        analyzeMovement();
+        // Update tube position
+        tubeAElement.object3D.position.x = newX;
+        tubeAElement.object3D.position.z = newZ;
         
-        console.log('Move X:', moveX.toFixed(2), 'Move Z:', moveZ.toFixed(2));
+        // Gentle tilt effect
+        tubeAElement.setAttribute('rotation', '-10 0 0');
+        
+        // Update touch position for next move
+        lastTouchX = currentX;
+        lastTouchY = currentY;
+        
+        // Update control info
+        updateControlInfo();
+        
+        // Check distance
+        checkDistance();
       });
       
       // TOUCH END
@@ -206,16 +228,16 @@
           tubeAElement.setAttribute('rotation', '0 0 0');
         }
         
-        // Check for reaction with current inversion settings
+        // Check for reaction
         const currentDistance = getDistance();
-        console.log('Current distance:', currentDistance);
+        console.log('Final distance:', currentDistance);
         
-        if (!reactionStarted && shouldTriggerReaction(currentDistance)) {
-          console.log('Triggering reaction!');
+        if (!reactionStarted && currentDistance < 0.5) {
+          console.log('Close enough! Starting reaction...');
           startReaction();
         } else {
-          console.log('Not triggering. Distance:', currentDistance);
-          updateInteraction('Adjust inversion settings below');
+          console.log('Not close enough. Distance:', currentDistance);
+          updateInteraction('Drag slowly toward yellow tube');
         }
         
         updateStatus();
@@ -244,99 +266,75 @@
       return distance;
     }
 
-    // ANALYZE MOVEMENT
-    function analyzeMovement() {
+    // CHECK DISTANCE
+    function checkDistance() {
       const distance = getDistance();
       const posA = tubeAElement.object3D.position;
       const posB = tubeBElement.object3D.position;
       
-      // Calculate direction
-      const dirX = posB.x - posA.x;
-      const dirZ = posB.z - posA.z;
+      // Update control panel
+      document.getElementById('control-positions').innerHTML = 
+        'Blue: (' + posA.x.toFixed(2) + ', ' + posA.z.toFixed(2) + ')<br>' +
+        'Yellow: (' + posB.x.toFixed(2) + ', ' + posB.z.toFixed(2) + ')';
       
-      // Update test panel
-      document.getElementById('test-positions').innerHTML = 
-        'Blue: (' + posA.x.toFixed(1) + ', ' + posA.z.toFixed(1) + ')<br>' +
-        'Yellow: (' + posB.x.toFixed(1) + ', ' + posB.z.toFixed(1) + ')';
+      document.getElementById('control-distance').innerHTML = 
+        'Distance: ' + distance.toFixed(2);
       
-      document.getElementById('test-distance').innerHTML = 
-        'Distance: ' + distance.toFixed(2) + '<br>' +
-        'Direction: X=' + dirX.toFixed(1) + ', Z=' + dirZ.toFixed(1);
-      
-      // Determine if we're getting closer or farther
-      if (distance < 0.5) {
-        document.getElementById('test-status').innerHTML = 
-          '✅ VERY CLOSE! Release for reaction';
-        document.getElementById('test-status').style.color = GREEN_COLOR;
-      } else if (distance < 1.0) {
-        document.getElementById('test-status').innerHTML = 
-          '⚠️ Close... Keep dragging';
-        document.getElementById('test-status').style.color = '#ff9900';
+      // Update status
+      if (distance < 0.3) {
+        document.getElementById('experiment-status').textContent = '✅ TOUCHING! Release now';
+        document.getElementById('experiment-status').style.color = GREEN_COLOR;
+        document.getElementById('control-feedback').innerHTML = '✅ PERFECT! Release for reaction';
+        document.getElementById('control-feedback').style.color = GREEN_COLOR;
+      } else if (distance < 0.8) {
+        document.getElementById('experiment-status').textContent = '⚠️ Getting close...';
+        document.getElementById('experiment-status').style.color = '#ff9900';
+        document.getElementById('control-feedback').innerHTML = '⚠️ Almost there! Keep dragging slowly';
+        document.getElementById('control-feedback').style.color = '#ff9900';
       } else {
-        document.getElementById('test-status').innerHTML = 
-          '❌ Far away. Need to get closer';
-        document.getElementById('test-status').style.color = '#ff4444';
+        document.getElementById('experiment-status').textContent = 'Dragging slowly...';
+        document.getElementById('experiment-status').style.color = '#ffffff';
+        document.getElementById('control-feedback').innerHTML = '❌ Still far. Drag toward yellow';
+        document.getElementById('control-feedback').style.color = '#ff4444';
       }
     }
 
-    // SHOULD TRIGGER REACTION
-    function shouldTriggerReaction(distance) {
-      // Test different thresholds based on inversion
-      if (invertDistance) {
-        // If distance is inverted, reaction happens when FAR apart
-        return distance > 2.0;
-      } else {
-        // Normal: reaction happens when CLOSE together
-        return distance < 0.6;
-      }
+    // UPDATE CONTROL INFO
+    function updateControlInfo() {
+      document.getElementById('control-sensitivity').innerHTML = 
+        'Sensitivity: ' + sensitivity.toFixed(4) + '<br>' +
+        'Boundaries: X:±' + BOUNDARY_X + ', Z:±' + BOUNDARY_Z;
     }
 
-    // UPDATE TEST INFO
-    function updateTestInfo() {
-      document.getElementById('inversion-status').innerHTML = 
-        'Inversion Settings:<br>' +
-        'X: ' + (invertX === 1 ? 'Normal' : 'INVERTED') + '<br>' +
-        'Z: ' + (invertZ === 1 ? 'Normal' : 'INVERTED') + '<br>' +
-        'Distance: ' + (invertDistance ? 'INVERTED' : 'Normal');
-    }
-
-    // TEST FUNCTIONS
-    window.testNormal = function() {
-      invertX = 1;
-      invertZ = 1;
-      invertDistance = false;
-      updateTestInfo();
-      console.log('Testing NORMAL settings');
+    // SENSITIVITY CONTROLS
+    window.decreaseSensitivity = function() {
+      sensitivity = Math.max(0.0001, sensitivity * 0.5); // Half the sensitivity
+      console.log('Sensitivity decreased to:', sensitivity);
+      updateControlInfo();
     };
     
-    window.testInvertX = function() {
-      invertX = -1;
-      invertZ = 1;
-      invertDistance = false;
-      updateTestInfo();
-      console.log('Testing INVERTED X');
+    window.increaseSensitivity = function() {
+      sensitivity = Math.min(0.01, sensitivity * 2); // Double the sensitivity
+      console.log('Sensitivity increased to:', sensitivity);
+      updateControlInfo();
     };
     
-    window.testInvertZ = function() {
-      invertX = 1;
-      invertZ = -1;
-      invertDistance = false;
-      updateTestInfo();
-      console.log('Testing INVERTED Z');
+    window.setVeryLowSensitivity = function() {
+      sensitivity = 0.0005; // Very low
+      console.log('Sensitivity set to VERY LOW:', sensitivity);
+      updateControlInfo();
     };
     
-    window.testInvertBoth = function() {
-      invertX = -1;
-      invertZ = -1;
-      invertDistance = false;
-      updateTestInfo();
-      console.log('Testing INVERTED Both');
+    window.setLowSensitivity = function() {
+      sensitivity = 0.001; // Low
+      console.log('Sensitivity set to LOW:', sensitivity);
+      updateControlInfo();
     };
     
-    window.testInvertDistance = function() {
-      invertDistance = !invertDistance;
-      updateTestInfo();
-      console.log('Testing INVERTED Distance:', invertDistance);
+    window.setMediumSensitivity = function() {
+      sensitivity = 0.002; // Medium
+      console.log('Sensitivity set to MEDIUM:', sensitivity);
+      updateControlInfo();
     };
 
     // START REACTION
@@ -456,9 +454,9 @@
         if (reactionStarted) {
           status.textContent = '⚗️ REACTION COMPLETE';
         } else if (isDragging) {
-          status.textContent = 'Testing drag...';
+          status.textContent = 'Dragging slowly...';
         } else {
-          status.textContent = 'Ready - Test inversion';
+          status.textContent = 'Ready - Drag gently';
         }
       } else if (tubeAVisible) {
         status.textContent = 'Blue tube found';
@@ -520,20 +518,18 @@
         tubeBGlow.setAttribute('opacity', '0');
       }
       
-      // Reset inversion
-      invertX = 1;
-      invertZ = 1;
-      invertDistance = false;
+      // Reset sensitivity to default
+      sensitivity = 0.001;
       
       // Reset UI
-      document.getElementById('experiment-status').textContent = 'Ready - Test inversion';
+      document.getElementById('experiment-status').textContent = 'Ready - Drag gently';
       document.getElementById('experiment-status').style.color = 'white';
       document.getElementById('reaction-status').textContent = 'Blue + Yellow = Green';
       document.getElementById('reaction-status').style.color = 'white';
       
-      updateInteraction('Test different inversion settings');
+      updateInteraction('Use sensitivity controls if needed');
       updateStatus();
-      updateTestInfo();
+      updateControlInfo();
     };
 
   </script>
@@ -543,7 +539,7 @@
 <body style="margin:0; overflow:hidden;">
   <!-- HUD Display -->
   <div id="hud">
-    <h3 style="margin: 0 0 10px 0;">🧪 Chemical Mixing TEST</h3>
+    <h3 style="margin: 0 0 10px 0;">🧪 Chemical Mixing</h3>
     <p><strong>Status:</strong> <span id="experiment-status">Scan both markers</span></p>
     <p><strong>Blue Tube:</strong> <span id="marker-a-status">❌</span></p>
     <p><strong>Yellow Tube:</strong> <span id="marker-b-status">❌</span></p>
@@ -553,25 +549,25 @@
     </button>
   </div>
   
-  <!-- Test Panel -->
-  <div class="test-panel">
-    <div><strong>INVERSION TEST PANEL</strong></div>
-    <div id="inversion-status">Inversion: Testing...</div>
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <div><strong>CONTROL PANEL</strong></div>
+    <div id="control-sensitivity">Sensitivity: --</div>
     <div style="margin: 5px 0;">
-      <button class="test-button" onclick="testNormal()">Normal</button>
-      <button class="test-button" onclick="testInvertX()">Invert X</button>
-      <button class="test-button" onclick="testInvertZ()">Invert Z</button>
-      <button class="test-button" onclick="testInvertBoth()">Invert Both</button>
-      <button class="test-button" onclick="testInvertDistance()">Invert Distance</button>
+      <button class="control-button" onclick="setVeryLowSensitivity()">Very Low</button>
+      <button class="control-button" onclick="setLowSensitivity()">Low</button>
+      <button class="control-button" onclick="setMediumSensitivity()">Medium</button>
+      <button class="control-button" onclick="decreaseSensitivity()">- Less</button>
+      <button class="control-button" onclick="increaseSensitivity()">+ More</button>
     </div>
-    <div id="test-positions">Positions: --</div>
-    <div id="test-distance">Distance: --</div>
-    <div id="test-status">Status: --</div>
+    <div id="control-positions">Positions: --</div>
+    <div id="control-distance">Distance: --</div>
+    <div id="control-feedback">Feedback: --</div>
   </div>
   
   <!-- Interaction Indicator -->
   <div class="interaction-indicator">
-    Scan both markers, then test inversion settings
+    Scan both markers, then drag GENTLY
   </div>
 
   <a-scene
@@ -623,6 +619,18 @@
           rotation="-90 0 0">
         </a-circle>
 
+        <!-- Blue glow -->
+        <a-ring
+          id="tubeA-glow"
+          radius-inner="0.14"
+          radius-outer="0.15"
+          position="0 0.3 0"
+          rotation="-90 0 0"
+          color="#0088ff"
+          opacity="0"
+          transparent="true">
+        </a-ring>
+
       </a-entity>
 
     </a-marker>
@@ -666,6 +674,18 @@
           opacity="0.95"
           rotation="-90 0 0">
         </a-circle>
+
+        <!-- Yellow glow -->
+        <a-ring
+          id="tubeB-glow"
+          radius-inner="0.14"
+          radius-outer="0.15"
+          position="0 0.3 0"
+          rotation="-90 0 0"
+          color="#ff9900"
+          opacity="0"
+          transparent="true">
+        </a-ring>
 
       </a-entity>
 
