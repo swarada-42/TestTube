@@ -27,14 +27,30 @@ padding:8px 16px;
 border-radius:5px;
 cursor:pointer;
 }
+.position-info{
+position:absolute;
+top:10px;
+right:10px;
+background:rgba(0,0,0,0.7);
+color:white;
+padding:5px 10px;
+border-radius:5px;
+font-size:12px;
+z-index:1000;
+}
 </style>
 
 <script>
 let tubeAVisible=false;
 let tubeBVisible=false;
+let isDragging=false;
 let reactionStarted=false;
 let tubeAElement=null;
 let tubeBElement=null;
+
+let dragStartScreenX=0;
+let dragStartScreenY=0;
+let tubeStartPos={x:0,y:0,z:0};
 
 const BLUE_COLOR='#0088ff';
 const YELLOW_COLOR='#ffff00';
@@ -47,19 +63,203 @@ scene.addEventListener('markerFound',function(e){
 if(e.target.id==='markerA'){
 tubeAVisible=true;
 tubeAElement=document.querySelector('#tubeA');
+document.getElementById('status').textContent="Blue tube found";
 }
 if(e.target.id==='markerB'){
 tubeBVisible=true;
 tubeBElement=document.querySelector('#tubeB');
+document.getElementById('status').textContent="Yellow tube found";
+}
+if(tubeAVisible && tubeBVisible){
+document.getElementById('status').textContent="Ready - Drag blue tube";
+updatePositionInfo();
 }
 });
 
-scene.addEventListener('touchend',function(){
-if(!reactionStarted && tubeAVisible && tubeBVisible){
+scene.addEventListener('markerLost',function(e){
+if(e.target.id==='markerA'){
+tubeAVisible=false;
+}
+if(e.target.id==='markerB'){
+tubeBVisible=false;
+}
+updateStatus();
+});
+
+// Mouse events for laptop/desktop
+scene.addEventListener('mousedown',function(e){
+if(reactionStarted || !tubeAVisible || !tubeBVisible) return;
+e.preventDefault();
+e.stopPropagation();
+dragStartScreenX=e.clientX;
+dragStartScreenY=e.clientY;
+if(tubeAElement && tubeAElement.object3D){
+const pos=tubeAElement.object3D.position;
+tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
+}
+isDragging=true;
+document.getElementById('status').textContent="Dragging...";
+});
+
+scene.addEventListener('mousemove',function(e){
+if(!isDragging || !tubeAElement) return;
+e.preventDefault();
+e.stopPropagation();
+const currentScreenX=e.clientX;
+const currentScreenY=e.clientY;
+const deltaScreenX=currentScreenX-dragStartScreenX;
+const deltaScreenY=currentScreenY-dragStartScreenY;
+const speedFactor=0.005;
+const deltaX=deltaScreenX*speedFactor;
+const deltaZ=-deltaScreenY*speedFactor;
+const newX=tubeStartPos.x+deltaX;
+const newZ=tubeStartPos.z+deltaZ;
+tubeAElement.object3D.position.x=newX;
+tubeAElement.object3D.position.z=newZ;
+tubeAElement.setAttribute('rotation','-15 0 0');
+updatePositionInfo();
+checkDistanceForReaction();
+});
+
+scene.addEventListener('mouseup',function(e){
+if(!isDragging) return;
+isDragging=false;
+if(tubeAElement){
+tubeAElement.setAttribute('rotation','0 0 0');
+}
+if(tubeAElement && tubeAElement.object3D){
+const pos=tubeAElement.object3D.position;
+tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
+}
+if(!reactionStarted && isCloseEnoughForReaction()){
 startReaction();
+}else{
+document.getElementById('status').textContent="Ready - Drag blue tube";
 }
 });
+
+// Touch events for mobile (keeping existing functionality)
+scene.addEventListener('touchstart',function(e){
+if(reactionStarted || !tubeAVisible || !tubeBVisible) return;
+e.preventDefault();
+e.stopPropagation();
+const touch=e.touches[0];
+dragStartScreenX=touch.clientX;
+dragStartScreenY=touch.clientY;
+if(tubeAElement && tubeAElement.object3D){
+const pos=tubeAElement.object3D.position;
+tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
+}
+isDragging=true;
+document.getElementById('status').textContent="Dragging...";
 });
+
+scene.addEventListener('touchmove',function(e){
+if(!isDragging || !tubeAElement) return;
+e.preventDefault();
+e.stopPropagation();
+const touch=e.touches[0];
+const currentScreenX=touch.clientX;
+const currentScreenY=touch.clientY;
+const deltaScreenX=currentScreenX-dragStartScreenX;
+const deltaScreenY=currentScreenY-dragStartScreenY;
+const speedFactor=0.005;
+const deltaX=deltaScreenX*speedFactor;
+const deltaZ=-deltaScreenY*speedFactor;
+const newX=tubeStartPos.x+deltaX;
+const newZ=tubeStartPos.z+deltaZ;
+tubeAElement.object3D.position.x=newX;
+tubeAElement.object3D.position.z=newZ;
+tubeAElement.setAttribute('rotation','-15 0 0');
+updatePositionInfo();
+checkDistanceForReaction();
+});
+
+scene.addEventListener('touchend',function(e){
+if(!isDragging) return;
+isDragging=false;
+if(tubeAElement){
+tubeAElement.setAttribute('rotation','0 0 0');
+}
+if(tubeAElement && tubeAElement.object3D){
+const pos=tubeAElement.object3D.position;
+tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
+}
+if(!reactionStarted && isCloseEnoughForReaction()){
+startReaction();
+}else{
+document.getElementById('status').textContent="Ready - Drag blue tube";
+}
+});
+
+// Prevent default click behavior
+scene.addEventListener('click',function(e){
+e.preventDefault();
+e.stopPropagation();
+return false;
+});
+});
+
+function isCloseEnoughForReaction(){
+if(!tubeAElement||!tubeBElement) return false;
+const posA=tubeAElement.object3D.position;
+const posB=tubeBElement.object3D.position;
+const distance=Math.sqrt(
+Math.pow(posA.x-posB.x,2)+
+Math.pow(posA.z-posB.z,2)
+);
+return distance<1.0;
+}
+
+function checkDistanceForReaction(){
+if(!tubeAElement||!tubeBElement) return;
+const posA=tubeAElement.object3D.position;
+const posB=tubeBElement.object3D.position;
+const distance=Math.sqrt(
+Math.pow(posA.x-posB.x,2)+
+Math.pow(posA.z-posB.z,2)
+);
+if(distance<1.0){
+document.getElementById('status').textContent="Close enough! Release to mix";
+document.getElementById('status').style.color="#00ff00";
+}else if(distance<2.0){
+document.getElementById('status').textContent="Getting closer...";
+document.getElementById('status').style.color="#ff9900";
+}else{
+document.getElementById('status').textContent="Dragging...";
+document.getElementById('status').style.color="#ffffff";
+}
+}
+
+function updatePositionInfo(){
+if(tubeAElement&&tubeBElement){
+const posA=tubeAElement.object3D.position;
+const posB=tubeBElement.object3D.position;
+const distance=Math.sqrt(
+Math.pow(posA.x-posB.x,2)+
+Math.pow(posA.z-posB.z,2)
+);
+document.getElementById('position-info').innerHTML=
+'Blue: ('+posA.x.toFixed(1)+','+posA.z.toFixed(1)+')<br>'+
+'Distance: '+distance.toFixed(1);
+}
+}
+
+function updateStatus(){
+if(tubeAVisible&&tubeBVisible){
+if(reactionStarted){
+document.getElementById('status').textContent="Reaction Complete!";
+}else{
+document.getElementById('status').textContent="Ready - Drag blue tube";
+}
+}else if(tubeAVisible){
+document.getElementById('status').textContent="Blue tube found";
+}else if(tubeBVisible){
+document.getElementById('status').textContent="Yellow tube found";
+}else{
+document.getElementById('status').textContent="Scan both markers";
+}
+}
 
 function startReaction(){
 reactionStarted=true;
@@ -71,10 +271,66 @@ document.querySelector('#liquidB').setAttribute('color',GREEN_COLOR);
 document.querySelector('#surfaceB').setAttribute('color',GREEN_COLOR);
 
 document.getElementById('status').textContent="Reaction Complete!";
+document.getElementById('status').style.color=GREEN_COLOR;
+
+if(tubeAElement&&tubeBElement){
+const posB=tubeBElement.object3D.position;
+tubeAElement.setAttribute('animation',{
+property:'position',
+to:`${posB.x} ${posB.y} ${posB.z}`,
+dur:600,
+easing:'easeInOutQuad'
+});
+}
+
+createEffects();
+}
+
+function createEffects(){
+for(let i=0;i<10;i++){
+setTimeout(()=>{
+const bubble=document.createElement('a-sphere');
+bubble.setAttribute('radius','0.02');
+bubble.setAttribute('color',GREEN_COLOR);
+bubble.setAttribute('opacity','0.7');
+if(tubeAElement){
+const pos=tubeAElement.object3D.position;
+bubble.setAttribute('position',{
+x:pos.x,
+y:pos.y+0.2,
+z:pos.z
+});
+}
+bubble.setAttribute('animation',{
+property:'position',
+to:'0 0.8 0',
+dur:1000,
+easing:'easeOutQuad'
+});
+bubble.setAttribute('animation__opacity',{
+property:'opacity',
+to:'0',
+dur:1000
+});
+document.querySelector('a-scene').appendChild(bubble);
+setTimeout(()=>{
+if(bubble.parentNode){
+bubble.parentNode.removeChild(bubble);
+}
+},1000);
+},i*120);
+}
 }
 
 function resetExperiment(){
 reactionStarted=false;
+isDragging=false;
+
+if(tubeAElement){
+tubeAElement.object3D.position.set(0,0,0);
+tubeAElement.setAttribute('rotation','0 0 0');
+tubeStartPos={x:0,y:0,z:0};
+}
 
 document.querySelector('#liquidA').setAttribute('color',BLUE_COLOR);
 document.querySelector('#surfaceA').setAttribute('color',BLUE_COLOR);
@@ -83,6 +339,10 @@ document.querySelector('#liquidB').setAttribute('color',YELLOW_COLOR);
 document.querySelector('#surfaceB').setAttribute('color',YELLOW_COLOR);
 
 document.getElementById('status').textContent="Scan both markers";
+document.getElementById('status').style.color="white";
+
+updateStatus();
+updatePositionInfo();
 }
 </script>
 </head>
@@ -95,22 +355,27 @@ document.getElementById('status').textContent="Scan both markers";
 <button onclick="resetExperiment()">Reset</button>
 </div>
 
+<div class="position-info" id="position-info">
+Position: --<br>Distance: --
+</div>
+
 <a-scene embedded arjs="debugUIEnabled:false;">
 
-<a-light type="ambient" intensity="1"></a-light>
+<a-light type="ambient" intensity="0.8"></a-light>
+<a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
 
 <a-marker id="markerA" type="pattern" url="markers/testtube_markerA.patt">
 <a-entity id="tubeA">
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#f8f8f8"></a-cylinder>
-<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0088ff"></a-cylinder>
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#ffffff" opacity="0.55" roughness="0.2" metalness="0.4" transparent="true"></a-cylinder>
+<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0088ff" opacity="0.95"></a-cylinder>
 <a-circle id="surfaceA" radius="0.13" position="0 0.45 0" color="#0088ff" rotation="-90 0 0"></a-circle>
 </a-entity>
 </a-marker>
 
 <a-marker id="markerB" type="pattern" url="markers/testtube_markerB.patt">
 <a-entity id="tubeB">
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#f8f8f8"></a-cylinder>
-<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffff00"></a-cylinder>
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#ffffff" opacity="0.55" roughness="0.2" metalness="0.4" transparent="true"></a-cylinder>
+<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffff00" opacity="0.95"></a-cylinder>
 <a-circle id="surfaceB" radius="0.13" position="0 0.45 0" color="#ffff00" rotation="-90 0 0"></a-circle>
 </a-entity>
 </a-marker>
