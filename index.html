@@ -38,6 +38,14 @@ border-radius:5px;
 font-size:12px;
 z-index:1000;
 }
+.glow-effect {
+opacity: 0.7;
+animation: pulse 1.5s infinite alternate;
+}
+@keyframes pulse {
+from { opacity: 0.4; }
+to { opacity: 0.8; }
+}
 </style>
 
 <script>
@@ -55,6 +63,7 @@ let tubeStartPos={x:0,y:0,z:0};
 const BLUE_COLOR='#0088ff';
 const YELLOW_COLOR='#ffff00';
 const GREEN_COLOR='#00ff00';
+const MIXED_COLOR='#00cc00';
 
 document.addEventListener('DOMContentLoaded',function(){
 const scene=document.querySelector('a-scene');
@@ -132,13 +141,13 @@ const pos=tubeAElement.object3D.position;
 tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
 }
 if(!reactionStarted && isCloseEnoughForReaction()){
-startReaction();
+completeReaction();
 }else{
 document.getElementById('status').textContent="Ready - Drag blue tube";
 }
 });
 
-// Touch events for mobile (keeping existing functionality)
+// Touch events for mobile
 scene.addEventListener('touchstart',function(e){
 if(reactionStarted || !tubeAVisible || !tubeBVisible) return;
 e.preventDefault();
@@ -186,7 +195,7 @@ const pos=tubeAElement.object3D.position;
 tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
 }
 if(!reactionStarted && isCloseEnoughForReaction()){
-startReaction();
+completeReaction();
 }else{
 document.getElementById('status').textContent="Ready - Drag blue tube";
 }
@@ -219,15 +228,65 @@ const distance=Math.sqrt(
 Math.pow(posA.x-posB.x,2)+
 Math.pow(posA.z-posB.z,2)
 );
-if(distance<1.0){
-document.getElementById('status').textContent="Close enough! Release to mix";
-document.getElementById('status').style.color="#00ff00";
-}else if(distance<2.0){
-document.getElementById('status').textContent="Getting closer...";
+
+// Gradually change color as tubes get closer
+if(distance<0.8){
+// Very close - show full green mix
+mixLiquids(1.0);
+document.getElementById('status').textContent="Very close! Release to complete";
+document.getElementById('status').style.color=GREEN_COLOR;
+}else if(distance<1.2){
+// Getting closer - start mixing
+const mixAmount=1.0-((distance-0.8)/0.4);
+mixLiquids(mixAmount);
+document.getElementById('status').textContent="Getting closer... Mixing!";
 document.getElementById('status').style.color="#ff9900";
+}else if(distance<2.0){
+// Medium distance - slight color change
+const mixAmount=(2.0-distance)/1.0*0.3;
+mixLiquids(mixAmount);
+document.getElementById('status').textContent="Dragging... Getting warmer";
+document.getElementById('status').style.color="#ffffff";
 }else{
+// Far away - no mixing
+mixLiquids(0);
 document.getElementById('status').textContent="Dragging...";
 document.getElementById('status').style.color="#ffffff";
+}
+}
+
+function mixLiquids(mixAmount){
+if(mixAmount<=0){
+// No mixing - original colors
+document.querySelector('#liquidA').setAttribute('color',BLUE_COLOR);
+document.querySelector('#surfaceA').setAttribute('color',BLUE_COLOR);
+document.querySelector('#liquidB').setAttribute('color',YELLOW_COLOR);
+document.querySelector('#surfaceB').setAttribute('color',YELLOW_COLOR);
+}else if(mixAmount>=1.0){
+// Full mixing - green
+document.querySelector('#liquidA').setAttribute('color',MIXED_COLOR);
+document.querySelector('#surfaceA').setAttribute('color',MIXED_COLOR);
+document.querySelector('#liquidB').setAttribute('color',MIXED_COLOR);
+document.querySelector('#surfaceB').setAttribute('color',MIXED_COLOR);
+}else{
+// Partial mixing - calculate intermediate color
+const blueR=parseInt(BLUE_COLOR.substr(1,2),16);
+const blueG=parseInt(BLUE_COLOR.substr(3,2),16);
+const blueB=parseInt(BLUE_COLOR.substr(5,2),16);
+const yellowR=parseInt(YELLOW_COLOR.substr(1,2),16);
+const yellowG=parseInt(YELLOW_COLOR.substr(3,2),16);
+const yellowB=parseInt(YELLOW_COLOR.substr(5,2),16);
+const mixedR=Math.round(blueR+(yellowR-blueR)*mixAmount);
+const mixedG=Math.round(blueG+(yellowG-blueG)*mixAmount);
+const mixedB=Math.round(blueB+(yellowB-blueB)*mixAmount);
+const mixedColor='#'+
+mixedR.toString(16).padStart(2,'0')+
+mixedG.toString(16).padStart(2,'0')+
+mixedB.toString(16).padStart(2,'0');
+document.querySelector('#liquidA').setAttribute('color',mixedColor);
+document.querySelector('#surfaceA').setAttribute('color',mixedColor);
+document.querySelector('#liquidB').setAttribute('color',mixedColor);
+document.querySelector('#surfaceB').setAttribute('color',mixedColor);
 }
 }
 
@@ -261,15 +320,10 @@ document.getElementById('status').textContent="Scan both markers";
 }
 }
 
-function startReaction(){
+function completeReaction(){
 reactionStarted=true;
-
-document.querySelector('#liquidA').setAttribute('color',GREEN_COLOR);
-document.querySelector('#surfaceA').setAttribute('color',GREEN_COLOR);
-
-document.querySelector('#liquidB').setAttribute('color',GREEN_COLOR);
-document.querySelector('#surfaceB').setAttribute('color',GREEN_COLOR);
-
+// Final green color
+mixLiquids(1.0);
 document.getElementById('status').textContent="Reaction Complete!";
 document.getElementById('status').style.color=GREEN_COLOR;
 
@@ -332,11 +386,7 @@ tubeAElement.setAttribute('rotation','0 0 0');
 tubeStartPos={x:0,y:0,z:0};
 }
 
-document.querySelector('#liquidA').setAttribute('color',BLUE_COLOR);
-document.querySelector('#surfaceA').setAttribute('color',BLUE_COLOR);
-
-document.querySelector('#liquidB').setAttribute('color',YELLOW_COLOR);
-document.querySelector('#surfaceB').setAttribute('color',YELLOW_COLOR);
+mixLiquids(0); // Reset to original colors
 
 document.getElementById('status').textContent="Scan both markers";
 document.getElementById('status').style.color="white";
