@@ -208,7 +208,8 @@ const distance=Math.sqrt(
 Math.pow(posA.x-posB.x,2)+
 Math.pow(posA.z-posB.z,2)
 );
-return distance<1.3; // Changed from 1.0 to 1.3
+// Only react when distance is between 1.0 and 2.0
+return distance >= 1.0 && distance <= 2.0;
 }
 
 function checkDistanceForReaction(){
@@ -220,24 +221,29 @@ Math.pow(posA.x-posB.x,2)+
 Math.pow(posA.z-posB.z,2)
 );
 
-// Start mixing at 2.0 distance, full green at 1.3 distance
-if(distance<1.3){
-// Very close - show full green mix
+// Only show mixing and reaction between 1.0 and 2.0 distance
+if(distance >= 1.0 && distance <= 1.3){
+// Within reaction range - show full green mix
 mixLiquids(1.0);
-document.getElementById('status').textContent="Very close! Release to complete";
+document.getElementById('status').textContent="Perfect! Release to complete";
 document.getElementById('status').style.color=GREEN_COLOR;
-}else if(distance<1.6){
-// Getting closer - start mixing
+}else if(distance >= 1.3 && distance <= 1.6){
+// Close to reaction range - significant mixing
 const mixAmount=1.0-((distance-1.3)/0.3);
 mixLiquids(mixAmount);
 document.getElementById('status').textContent="Getting closer... Mixing!";
 document.getElementById('status').style.color="#ff9900";
-}else if(distance<2.0){
-// Medium distance - slight color change
+}else if(distance >= 1.6 && distance <= 2.0){
+// Within mixing range but not reaction - slight color change
 const mixAmount=(2.0-distance)/0.4*0.3;
 mixLiquids(mixAmount);
 document.getElementById('status').textContent="Dragging... Getting warmer";
 document.getElementById('status').style.color="#ffffff";
+}else if(distance < 1.0){
+// Too close - no reaction allowed (0.2, 0.3 range)
+mixLiquids(0);
+document.getElementById('status').textContent="Too close! Move slightly away";
+document.getElementById('status').style.color="#ff4444";
 }else{
 // Far away - no mixing
 mixLiquids(0);
