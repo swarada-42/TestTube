@@ -111,7 +111,7 @@ const deltaScreenX=currentScreenX-dragStartScreenX;
 const deltaScreenY=currentScreenY-dragStartScreenY;
 const speedFactor=0.005;
 const deltaX=deltaScreenX*speedFactor;
-const deltaZ=deltaScreenY*speedFactor; // Fixed: remove negative sign
+const deltaZ=deltaScreenY*speedFactor;
 const newX=tubeStartPos.x+deltaX;
 const newZ=tubeStartPos.z+deltaZ;
 tubeAElement.object3D.position.x=newX;
@@ -165,7 +165,7 @@ const deltaScreenX=currentScreenX-dragStartScreenX;
 const deltaScreenY=currentScreenY-dragStartScreenY;
 const speedFactor=0.005;
 const deltaX=deltaScreenX*speedFactor;
-const deltaZ=deltaScreenY*speedFactor; // Fixed: remove negative sign
+const deltaZ=deltaScreenY*speedFactor;
 const newX=tubeStartPos.x+deltaX;
 const newZ=tubeStartPos.z+deltaZ;
 tubeAElement.object3D.position.x=newX;
@@ -208,7 +208,7 @@ const distance=Math.sqrt(
 Math.pow(posA.x-posB.x,2)+
 Math.pow(posA.z-posB.z,2)
 );
-return distance<1.0;
+return distance<1.3; // Changed from 1.0 to 1.3
 }
 
 function checkDistanceForReaction(){
@@ -220,21 +220,21 @@ Math.pow(posA.x-posB.x,2)+
 Math.pow(posA.z-posB.z,2)
 );
 
-// Gradually change color as tubes get closer
-if(distance<0.8){
+// Start mixing at 2.0 distance, full green at 1.3 distance
+if(distance<1.3){
 // Very close - show full green mix
 mixLiquids(1.0);
 document.getElementById('status').textContent="Very close! Release to complete";
 document.getElementById('status').style.color=GREEN_COLOR;
-}else if(distance<1.2){
+}else if(distance<1.6){
 // Getting closer - start mixing
-const mixAmount=1.0-((distance-0.8)/0.4);
+const mixAmount=1.0-((distance-1.3)/0.3);
 mixLiquids(mixAmount);
 document.getElementById('status').textContent="Getting closer... Mixing!";
 document.getElementById('status').style.color="#ff9900";
 }else if(distance<2.0){
 // Medium distance - slight color change
-const mixAmount=(2.0-distance)/1.0*0.3;
+const mixAmount=(2.0-distance)/0.4*0.3;
 mixLiquids(mixAmount);
 document.getElementById('status').textContent="Dragging... Getting warmer";
 document.getElementById('status').style.color="#ffffff";
