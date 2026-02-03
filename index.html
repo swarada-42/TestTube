@@ -611,15 +611,15 @@
       url="markers/testtube_markerA.patt">
 
       <a-entity id="tubeA" position="0 0 0">
-        <!-- Glass -->
+        <!-- Glass - LESS TRANSPARENT (opacity: 0.6 instead of 0.25) -->
         <a-cylinder
           radius="0.15"
           height="0.6"
           position="0 0.3 0"
-          color="#ffffff"
-          opacity="0.25"
-          roughness="0.1"
-          metalness="0.5">
+          color="#f8f8f8"  <!-- Changed to lighter color for better visibility -->
+          opacity="0.6"    <!-- Increased from 0.25 to 0.6 -->
+          roughness="0.3"  <!-- Increased roughness for less reflection -->
+          metalness="0.2"> <!-- Reduced metalness -->
         </a-cylinder>
 
         <!-- BLUE Liquid -->
@@ -629,9 +629,9 @@
           height="0.45"
           position="0 0.225 0"
           color="#0088ff"
-          opacity="0.95"
-          roughness="0.2"
-          metalness="0.1">
+          opacity="0.98"   <!-- Increased opacity for more vibrant color -->
+          roughness="0.1"   <!-- Smooth liquid surface -->
+          metalness="0.05"> <!-- Slight metallic sheen -->
         </a-cylinder>
 
         <!-- Blue surface -->
@@ -640,7 +640,7 @@
           radius="0.13"
           position="0 0.45 0"
           color="#0088ff"
-          opacity="0.95"
+          opacity="0.98"
           rotation="-90 0 0">
         </a-circle>
 
@@ -667,15 +667,15 @@
       url="markers/testtube_markerB.patt">
 
       <a-entity id="tubeB" position="0 0 0">
-        <!-- Glass -->
+        <!-- Glass - LESS TRANSPARENT (opacity: 0.6 instead of 0.25) -->
         <a-cylinder
           radius="0.15"
           height="0.6"
           position="0 0.3 0"
-          color="#ffffff"
-          opacity="0.25"
-          roughness="0.1"
-          metalness="0.5">
+          color="#f8f8f8"  <!-- Changed to lighter color for better visibility -->
+          opacity="0.6"    <!-- Increased from 0.25 to 0.6 -->
+          roughness="0.3"  <!-- Increased roughness for less reflection -->
+          metalness="0.2"> <!-- Reduced metalness -->
         </a-cylinder>
 
         <!-- YELLOW Liquid -->
@@ -685,9 +685,9 @@
           height="0.45"
           position="0 0.225 0"
           color="#ffff00"
-          opacity="0.95"
-          roughness="0.2"
-          metalness="0.1">
+          opacity="0.98"   <!-- Increased opacity for more vibrant color -->
+          roughness="0.1"   <!-- Smooth liquid surface -->
+          metalness="0.05"> <!-- Slight metallic sheen -->
         </a-cylinder>
 
         <!-- Yellow surface -->
@@ -696,7 +696,7 @@
           radius="0.13"
           position="0 0.45 0"
           color="#ffff00"
-          opacity="0.95'
+          opacity="0.98"
           rotation="-90 0 0">
         </a-circle>
 
