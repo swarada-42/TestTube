@@ -38,14 +38,6 @@ border-radius:5px;
 font-size:12px;
 z-index:1000;
 }
-.glow-effect {
-opacity: 0.7;
-animation: pulse 1.5s infinite alternate;
-}
-@keyframes pulse {
-from { opacity: 0.4; }
-to { opacity: 0.8; }
-}
 </style>
 
 <script>
@@ -63,7 +55,6 @@ let tubeStartPos={x:0,y:0,z:0};
 const BLUE_COLOR='#0088ff';
 const YELLOW_COLOR='#ffff00';
 const GREEN_COLOR='#00ff00';
-const MIXED_COLOR='#00cc00';
 
 document.addEventListener('DOMContentLoaded',function(){
 const scene=document.querySelector('a-scene');
@@ -120,7 +111,7 @@ const deltaScreenX=currentScreenX-dragStartScreenX;
 const deltaScreenY=currentScreenY-dragStartScreenY;
 const speedFactor=0.005;
 const deltaX=deltaScreenX*speedFactor;
-const deltaZ=-deltaScreenY*speedFactor;
+const deltaZ=deltaScreenY*speedFactor; // Fixed: remove negative sign
 const newX=tubeStartPos.x+deltaX;
 const newZ=tubeStartPos.z+deltaZ;
 tubeAElement.object3D.position.x=newX;
@@ -174,7 +165,7 @@ const deltaScreenX=currentScreenX-dragStartScreenX;
 const deltaScreenY=currentScreenY-dragStartScreenY;
 const speedFactor=0.005;
 const deltaX=deltaScreenX*speedFactor;
-const deltaZ=-deltaScreenY*speedFactor;
+const deltaZ=deltaScreenY*speedFactor; // Fixed: remove negative sign
 const newX=tubeStartPos.x+deltaX;
 const newZ=tubeStartPos.z+deltaZ;
 tubeAElement.object3D.position.x=newX;
@@ -264,10 +255,10 @@ document.querySelector('#liquidB').setAttribute('color',YELLOW_COLOR);
 document.querySelector('#surfaceB').setAttribute('color',YELLOW_COLOR);
 }else if(mixAmount>=1.0){
 // Full mixing - green
-document.querySelector('#liquidA').setAttribute('color',MIXED_COLOR);
-document.querySelector('#surfaceA').setAttribute('color',MIXED_COLOR);
-document.querySelector('#liquidB').setAttribute('color',MIXED_COLOR);
-document.querySelector('#surfaceB').setAttribute('color',MIXED_COLOR);
+document.querySelector('#liquidA').setAttribute('color',GREEN_COLOR);
+document.querySelector('#surfaceA').setAttribute('color',GREEN_COLOR);
+document.querySelector('#liquidB').setAttribute('color',GREEN_COLOR);
+document.querySelector('#surfaceB').setAttribute('color',GREEN_COLOR);
 }else{
 // Partial mixing - calculate intermediate color
 const blueR=parseInt(BLUE_COLOR.substr(1,2),16);
@@ -300,6 +291,7 @@ Math.pow(posA.z-posB.z,2)
 );
 document.getElementById('position-info').innerHTML=
 'Blue: ('+posA.x.toFixed(1)+','+posA.z.toFixed(1)+')<br>'+
+'Yellow: ('+posB.x.toFixed(1)+','+posB.z.toFixed(1)+')<br>'+
 'Distance: '+distance.toFixed(1);
 }
 }
