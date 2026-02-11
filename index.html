@@ -86,6 +86,7 @@ if(e.target.id==='markerA'){
 tubeAVisible=true;
 tubeAElement=document.querySelector('#tubeA');
 document.getElementById('status').textContent="Blue tube found";
+updateLiquidLevels();
 }
 if(e.target.id==='markerB'){
 tubeBVisible=true;
@@ -336,7 +337,6 @@ drop.setAttribute('opacity','0.9');
 
 // Calculate drop start position (from tilted tube opening)
 const tiltRad = pourAngle * Math.PI / 180;
-const tubeHeight = 0.6;
 const startX = tubeAElement.object3D.position.x;
 const startY = tubeAElement.object3D.position.y + 0.3 - Math.sin(tiltRad) * 0.25;
 const startZ = tubeAElement.object3D.position.z + Math.cos(tiltRad) * 0.25;
@@ -433,10 +433,14 @@ const newHeightA = liquidLevelA * 0.45;
 const newPositionA = 0.15 + (newHeightA/2);
 const liquidA = document.querySelector('#liquidA');
 const surfaceA = document.querySelector('#surfaceA');
-if(liquidA && surfaceA){
+if(liquidA){
 liquidA.setAttribute('height', newHeightA);
 liquidA.setAttribute('position', `0 ${newPositionA} 0`);
+console.log('Blue liquid updated:', newHeightA, newPositionA);
+}
+if(surfaceA){
 surfaceA.setAttribute('position', `0 ${0.15 + newHeightA} 0`);
+console.log('Blue surface updated:', 0.15 + newHeightA);
 }
 
 // Update yellow liquid
@@ -444,26 +448,40 @@ const newHeightB = liquidLevelB * 0.45;
 const newPositionB = 0.15 + (newHeightB/2);
 const liquidB = document.querySelector('#liquidB');
 const surfaceB = document.querySelector('#surfaceB');
-if(liquidB && surfaceB){
+if(liquidB){
 liquidB.setAttribute('height', newHeightB);
 liquidB.setAttribute('position', `0 ${newPositionB} 0`);
+console.log('Yellow liquid updated:', newHeightB, newPositionB);
+}
+if(surfaceB){
 surfaceB.setAttribute('position', `0 ${0.15 + newHeightB} 0`);
+console.log('Yellow surface updated:', 0.15 + newHeightB);
 }
 }
 
 function mixLiquids(mixAmount){
 if(mixAmount<=0){
 // No mixing - original colors
-document.querySelector('#liquidA').setAttribute('color',BLUE_COLOR);
-document.querySelector('#surfaceA').setAttribute('color',BLUE_COLOR);
-document.querySelector('#liquidB').setAttribute('color',YELLOW_COLOR);
-document.querySelector('#surfaceB').setAttribute('color',YELLOW_COLOR);
+const liquidA=document.querySelector('#liquidA');
+const surfaceA=document.querySelector('#surfaceA');
+const liquidB=document.querySelector('#liquidB');
+const surfaceB=document.querySelector('#surfaceB');
+if(liquidA) liquidA.setAttribute('color',BLUE_COLOR);
+if(surfaceA) surfaceA.setAttribute('color',BLUE_COLOR);
+if(liquidB) liquidB.setAttribute('color',YELLOW_COLOR);
+if(surfaceB) surfaceB.setAttribute('color',YELLOW_COLOR);
+console.log('Reset to original colors');
 }else if(mixAmount>=1.0){
 // Full mixing - green
-document.querySelector('#liquidA').setAttribute('color',GREEN_COLOR);
-document.querySelector('#surfaceA').setAttribute('color',GREEN_COLOR);
-document.querySelector('#liquidB').setAttribute('color',GREEN_COLOR);
-document.querySelector('#surfaceB').setAttribute('color',GREEN_COLOR);
+const liquidA=document.querySelector('#liquidA');
+const surfaceA=document.querySelector('#surfaceA');
+const liquidB=document.querySelector('#liquidB');
+const surfaceB=document.querySelector('#surfaceB');
+if(liquidA) liquidA.setAttribute('color',GREEN_COLOR);
+if(surfaceA) surfaceA.setAttribute('color',GREEN_COLOR);
+if(liquidB) liquidB.setAttribute('color',GREEN_COLOR);
+if(surfaceB) surfaceB.setAttribute('color',GREEN_COLOR);
+console.log('Full green mixing');
 }else{
 // Partial mixing - calculate intermediate color
 const blueR=parseInt(BLUE_COLOR.substr(1,2),16);
@@ -479,10 +497,15 @@ const mixedColor='#'+
 mixedR.toString(16).padStart(2,'0')+
 mixedG.toString(16).padStart(2,'0')+
 mixedB.toString(16).padStart(2,'0');
-document.querySelector('#liquidA').setAttribute('color',mixedColor);
-document.querySelector('#surfaceA').setAttribute('color',mixedColor);
-document.querySelector('#liquidB').setAttribute('color',mixedColor);
-document.querySelector('#surfaceB').setAttribute('color',mixedColor);
+const liquidA=document.querySelector('#liquidA');
+const surfaceA=document.querySelector('#surfaceA');
+const liquidB=document.querySelector('#liquidB');
+const surfaceB=document.querySelector('#surfaceB');
+if(liquidA) liquidA.setAttribute('color',mixedColor);
+if(surfaceA) surfaceA.setAttribute('color',mixedColor);
+if(liquidB) liquidB.setAttribute('color',mixedColor);
+if(surfaceB) surfaceB.setAttribute('color',mixedColor);
+console.log('Partial mixing:', mixedColor, mixAmount);
 }
 }
 
@@ -497,7 +520,9 @@ Math.pow(posA.z-posB.z,2)
 document.getElementById('position-info').innerHTML=
 'Distance: '+distance.toFixed(1)+'<br>'+
 'Tilt: '+Math.abs(pourAngle).toFixed(1)+'°<br>'+
-'Poured: '+Math.round(pouredAmount/MAX_POUR*100)+'%';
+'Poured: '+Math.round(pouredAmount/MAX_POUR*100)+'%<br>'+
+'Blue Level: '+Math.round(liquidLevelA*100)+'%<br>'+
+'Yellow Level: '+Math.round(liquidLevelB*100)+'%';
 }
 }
 
@@ -578,6 +603,8 @@ isDragging=false;
 isPouringActive=false;
 pourAngle=0;
 pouredAmount=0;
+liquidLevelA=0.45;
+liquidLevelB=0.45;
 stopPouring();
 
 if(tubeAElement){
@@ -586,11 +613,7 @@ tubeAElement.setAttribute('rotation','0 0 0');
 tubeStartPos={x:0,y:0,z:0};
 }
 
-// Reset liquid levels
-liquidLevelA=0.45;
-liquidLevelB=0.45;
 updateLiquidLevels();
-
 mixLiquids(0); // Reset to original colors
 
 document.getElementById('status').textContent="Scan both markers";
@@ -599,6 +622,7 @@ document.getElementById('status').style.color="white";
 updateStatus();
 updatePositionInfo();
 updateInstruction("Scan both tube markers");
+console.log('Experiment reset');
 }
 </script>
 </head>
