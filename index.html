@@ -56,6 +56,9 @@ const BLUE_COLOR='#0088ff';
 const YELLOW_COLOR='#ffff00';
 const GREEN_COLOR='#00ff00';
 
+let liquidLevelA=0.45;
+let liquidLevelB=0.45;
+
 document.addEventListener('DOMContentLoaded',function(){
 const scene=document.querySelector('a-scene');
 
@@ -335,7 +338,91 @@ easing:'easeInOutQuad'
 });
 }
 
+// Tilt blue tube and pour liquid
+pourLiquidAnimation();
+}
+
+function pourLiquidAnimation(){
+// First tilt the blue tube
+tubeAElement.setAttribute('animation__tilt',{
+property:'rotation',
+from:'0 0 0',
+to:'-90 0 0',
+dur:800,
+easing:'easeInOutQuad'
+});
+
+// Decrease blue liquid level
+setTimeout(() => {
+liquidLevelA = 0.1;
+const newHeightA = liquidLevelA * 0.45;
+const newPositionA = 0.15 + (newHeightA/2);
+document.querySelector('#liquidA').setAttribute('height', newHeightA);
+document.querySelector('#liquidA').setAttribute('position', `0 ${newPositionA} 0`);
+document.querySelector('#surfaceA').setAttribute('position', `0 ${0.15 + newHeightA} 0`);
+}, 400);
+
+// Create pouring liquid drops
+createPouringDrops();
+
+// Increase yellow liquid level and change color
+setTimeout(() => {
+liquidLevelB = 0.55;
+const newHeightB = liquidLevelB * 0.45;
+const newPositionB = 0.15 + (newHeightB/2);
+document.querySelector('#liquidB').setAttribute('height', newHeightB);
+document.querySelector('#liquidB').setAttribute('position', `0 ${newPositionB} 0`);
+document.querySelector('#surfaceB').setAttribute('position', `0 ${0.15 + newHeightB} 0`);
+}, 800);
+
+// Return tube to upright position
+setTimeout(() => {
+tubeAElement.setAttribute('animation__return',{
+property:'rotation',
+from:'-90 0 0',
+to:'0 0 0',
+dur:400,
+easing:'easeInOutQuad'
+});
+}, 1200);
+
 createEffects();
+}
+
+function createPouringDrops(){
+for(let i=0;i<20;i++){
+setTimeout(()=>{
+const drop=document.createElement('a-sphere');
+drop.setAttribute('radius','0.02');
+drop.setAttribute('color',BLUE_COLOR);
+drop.setAttribute('opacity','0.9');
+if(tubeAElement){
+const pos=tubeAElement.object3D.position;
+drop.setAttribute('position',{
+x:pos.x,
+y:pos.y+0.3,
+z:pos.z
+});
+}
+drop.setAttribute('animation',{
+property:'position',
+to:`${tubeBElement.object3D.position.x} ${tubeBElement.object3D.position.y+0.2} ${tubeBElement.object3D.position.z}`,
+dur:500,
+easing:'easeInQuad'
+});
+drop.setAttribute('animation__opacity',{
+property:'opacity',
+to:'0',
+dur:500
+});
+document.querySelector('a-scene').appendChild(drop);
+setTimeout(()=>{
+if(drop.parentNode){
+drop.parentNode.removeChild(drop);
+}
+},500);
+},i*40);
+}
 }
 
 function createEffects(){
@@ -345,8 +432,8 @@ const bubble=document.createElement('a-sphere');
 bubble.setAttribute('radius','0.02');
 bubble.setAttribute('color',GREEN_COLOR);
 bubble.setAttribute('opacity','0.7');
-if(tubeAElement){
-const pos=tubeAElement.object3D.position;
+if(tubeBElement){
+const pos=tubeBElement.object3D.position;
 bubble.setAttribute('position',{
 x:pos.x,
 y:pos.y+0.2,
@@ -383,6 +470,18 @@ tubeAElement.object3D.position.set(0,0,0);
 tubeAElement.setAttribute('rotation','0 0 0');
 tubeStartPos={x:0,y:0,z:0};
 }
+
+// Reset liquid levels
+liquidLevelA=0.45;
+liquidLevelB=0.45;
+
+document.querySelector('#liquidA').setAttribute('height', 0.45);
+document.querySelector('#liquidA').setAttribute('position', '0 0.225 0');
+document.querySelector('#surfaceA').setAttribute('position', '0 0.45 0');
+
+document.querySelector('#liquidB').setAttribute('height', 0.45);
+document.querySelector('#liquidB').setAttribute('position', '0 0.225 0');
+document.querySelector('#surfaceB').setAttribute('position', '0 0.45 0');
 
 mixLiquids(0); // Reset to original colors
 
