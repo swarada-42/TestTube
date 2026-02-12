@@ -38,6 +38,17 @@ border-radius:5px;
 font-size:12px;
 z-index:1000;
 }
+.rotation-info{
+position:absolute;
+bottom:100px;
+left:10px;
+background:rgba(0,0,0,0.7);
+color:white;
+padding:5px 10px;
+border-radius:5px;
+font-size:12px;
+z-index:1000;
+}
 </style>
 
 <script>
@@ -47,6 +58,8 @@ let isDragging=false;
 let reactionStarted=false;
 let tubeAElement=null;
 let tubeBElement=null;
+let markerARotation=0;
+let markerBRotation=0;
 
 let dragStartScreenX=0;
 let dragStartScreenY=0;
@@ -86,6 +99,27 @@ tubeBVisible=false;
 updateStatus();
 });
 
+// Track marker rotation
+scene.addEventListener('markerPoseFound', function(e) {
+  const marker = e.target;
+  if (marker.id === 'markerA' && marker.object3D) {
+    const rotation = marker.object3D.rotation;
+    markerARotation = rotation.y * (180 / Math.PI);
+    if (tubeAElement) {
+      tubeAElement.setAttribute('rotation', `0 ${markerARotation} 0`);
+    }
+    updateRotationInfo();
+  }
+  if (marker.id === 'markerB' && marker.object3D) {
+    const rotation = marker.object3D.rotation;
+    markerBRotation = rotation.y * (180 / Math.PI);
+    if (tubeBElement) {
+      tubeBElement.setAttribute('rotation', `0 ${markerBRotation} 0`);
+    }
+    updateRotationInfo();
+  }
+});
+
 // Mouse events for laptop/desktop
 scene.addEventListener('mousedown',function(e){
 if(reactionStarted || !tubeAVisible || !tubeBVisible) return;
@@ -116,7 +150,8 @@ const newX=tubeStartPos.x+deltaX;
 const newZ=tubeStartPos.z+deltaZ;
 tubeAElement.object3D.position.x=newX;
 tubeAElement.object3D.position.z=newZ;
-tubeAElement.setAttribute('rotation','-15 0 0');
+// Preserve marker rotation when dragging
+tubeAElement.setAttribute('rotation', `0 ${markerARotation} 0`);
 updatePositionInfo();
 checkDistanceForReaction();
 });
@@ -125,7 +160,7 @@ scene.addEventListener('mouseup',function(e){
 if(!isDragging) return;
 isDragging=false;
 if(tubeAElement){
-tubeAElement.setAttribute('rotation','0 0 0');
+tubeAElement.setAttribute('rotation', `0 ${markerARotation} 0`);
 }
 if(tubeAElement && tubeAElement.object3D){
 const pos=tubeAElement.object3D.position;
@@ -170,7 +205,8 @@ const newX=tubeStartPos.x+deltaX;
 const newZ=tubeStartPos.z+deltaZ;
 tubeAElement.object3D.position.x=newX;
 tubeAElement.object3D.position.z=newZ;
-tubeAElement.setAttribute('rotation','-15 0 0');
+// Preserve marker rotation when dragging
+tubeAElement.setAttribute('rotation', `0 ${markerARotation} 0`);
 updatePositionInfo();
 checkDistanceForReaction();
 });
@@ -179,7 +215,7 @@ scene.addEventListener('touchend',function(e){
 if(!isDragging) return;
 isDragging=false;
 if(tubeAElement){
-tubeAElement.setAttribute('rotation','0 0 0');
+tubeAElement.setAttribute('rotation', `0 ${markerARotation} 0`);
 }
 if(tubeAElement && tubeAElement.object3D){
 const pos=tubeAElement.object3D.position;
@@ -208,7 +244,6 @@ const distance=Math.sqrt(
 Math.pow(posA.x-posB.x,2)+
 Math.pow(posA.z-posB.z,2)
 );
-// Only react when distance is between 1.0 and 2.0
 return distance >= 1.0 && distance <= 2.0;
 }
 
@@ -221,31 +256,25 @@ Math.pow(posA.x-posB.x,2)+
 Math.pow(posA.z-posB.z,2)
 );
 
-// Only show mixing and reaction between 1.0 and 2.0 distance
 if(distance >= 1.0 && distance <= 1.3){
-// Within reaction range - show full green mix
 mixLiquids(1.0);
 document.getElementById('status').textContent="Perfect! Release to complete";
 document.getElementById('status').style.color=GREEN_COLOR;
 }else if(distance >= 1.3 && distance <= 1.6){
-// Close to reaction range - significant mixing
 const mixAmount=1.0-((distance-1.3)/0.3);
 mixLiquids(mixAmount);
 document.getElementById('status').textContent="Getting closer... Mixing!";
 document.getElementById('status').style.color="#ff9900";
 }else if(distance >= 1.6 && distance <= 2.0){
-// Within mixing range but not reaction - slight color change
 const mixAmount=(2.0-distance)/0.4*0.3;
 mixLiquids(mixAmount);
 document.getElementById('status').textContent="Dragging... Getting warmer";
 document.getElementById('status').style.color="#ffffff";
 }else if(distance < 1.0){
-// Too close - no reaction allowed (0.2, 0.3 range)
 mixLiquids(0);
 document.getElementById('status').textContent="Too close! Move slightly away";
 document.getElementById('status').style.color="#ff4444";
 }else{
-// Far away - no mixing
 mixLiquids(0);
 document.getElementById('status').textContent="Dragging...";
 document.getElementById('status').style.color="#ffffff";
@@ -254,19 +283,16 @@ document.getElementById('status').style.color="#ffffff";
 
 function mixLiquids(mixAmount){
 if(mixAmount<=0){
-// No mixing - original colors
 document.querySelector('#liquidA').setAttribute('color',BLUE_COLOR);
 document.querySelector('#surfaceA').setAttribute('color',BLUE_COLOR);
 document.querySelector('#liquidB').setAttribute('color',YELLOW_COLOR);
 document.querySelector('#surfaceB').setAttribute('color',YELLOW_COLOR);
 }else if(mixAmount>=1.0){
-// Full mixing - green
 document.querySelector('#liquidA').setAttribute('color',GREEN_COLOR);
 document.querySelector('#surfaceA').setAttribute('color',GREEN_COLOR);
 document.querySelector('#liquidB').setAttribute('color',GREEN_COLOR);
 document.querySelector('#surfaceB').setAttribute('color',GREEN_COLOR);
 }else{
-// Partial mixing - calculate intermediate color
 const blueR=parseInt(BLUE_COLOR.substr(1,2),16);
 const blueG=parseInt(BLUE_COLOR.substr(3,2),16);
 const blueB=parseInt(BLUE_COLOR.substr(5,2),16);
@@ -302,6 +328,12 @@ document.getElementById('position-info').innerHTML=
 }
 }
 
+function updateRotationInfo(){
+document.getElementById('rotation-info').innerHTML=
+'Blue Rotation: '+Math.round(markerARotation)+'°<br>'+
+'Yellow Rotation: '+Math.round(markerBRotation)+'°';
+}
+
 function updateStatus(){
 if(tubeAVisible&&tubeBVisible){
 if(reactionStarted){
@@ -320,7 +352,6 @@ document.getElementById('status').textContent="Scan both markers";
 
 function completeReaction(){
 reactionStarted=true;
-// Final green color
 mixLiquids(1.0);
 document.getElementById('status').textContent="Reaction Complete!";
 document.getElementById('status').style.color=GREEN_COLOR;
@@ -380,11 +411,11 @@ isDragging=false;
 
 if(tubeAElement){
 tubeAElement.object3D.position.set(0,0,0);
-tubeAElement.setAttribute('rotation','0 0 0');
+tubeAElement.setAttribute('rotation', `0 ${markerARotation} 0`);
 tubeStartPos={x:0,y:0,z:0};
 }
 
-mixLiquids(0); // Reset to original colors
+mixLiquids(0);
 
 document.getElementById('status').textContent="Scan both markers";
 document.getElementById('status').style.color="white";
@@ -405,6 +436,11 @@ updatePositionInfo();
 
 <div class="position-info" id="position-info">
 Position: --<br>Distance: --
+</div>
+
+<div class="rotation-info" id="rotation-info">
+Blue Rotation: 0°<br>
+Yellow Rotation: 0°
 </div>
 
 <a-scene embedded arjs="debugUIEnabled:false;">
