@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Chemical Mixing - Simple Pouring</title>
+<title>AR Chemical Mixing - Direct Tilt Control</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
@@ -55,7 +55,7 @@ font-size:16px;
 font-weight:bold;
 z-index:1000;
 }
-.test-btn{
+.tilt-test{
 position:absolute;
 bottom:100px;
 left:10px;
@@ -87,7 +87,7 @@ const GREEN_COLOR='#00cc66';
 
 let liquidLevelA=0.45;
 let liquidLevelB=0.45;
-let pourAngle=0;
+let currentTilt=0;
 let pouredAmount=0;
 
 document.addEventListener('DOMContentLoaded',function(){
@@ -98,30 +98,23 @@ if(e.target.id==='markerA'){
 tubeAVisible=true;
 tubeAElement=document.querySelector('#tubeA');
 document.getElementById('status').textContent="✅ Blue tube ready";
-document.getElementById('status').style.color="#00ff00";
 updateLiquidLevels();
 }
 if(e.target.id==='markerB'){
 tubeBVisible=true;
 tubeBElement=document.querySelector('#tubeB');
 document.getElementById('status').textContent="✅ Yellow tube ready";
-document.getElementById('status').style.color="#00ff00";
 }
 if(tubeAVisible && tubeBVisible){
-document.getElementById('status').textContent="✅ READY! Drag BLUE tube UP to pour";
-document.getElementById('status').style.color="#00ff00";
+document.getElementById('status').textContent="✅ READY! Drag BLUE tube UP to tilt";
 updatePositionInfo();
-updateInstruction("⬆️ DRAG BLUE TUBE UPWARD to tilt and pour ⬆️");
+updateInstruction("⬆️ DRAG BLUE TUBE UPWARD to tilt ⬆️");
 }
 });
 
 scene.addEventListener('markerLost',function(e){
-if(e.target.id==='markerA'){
-tubeAVisible=false;
-}
-if(e.target.id==='markerB'){
-tubeBVisible=false;
-}
+if(e.target.id==='markerA') tubeAVisible=false;
+if(e.target.id==='markerB') tubeBVisible=false;
 updateStatus();
 });
 
@@ -133,34 +126,33 @@ dragStartY=e.clientY;
 const pos=tubeAElement.object3D.position;
 tubeStartPos={x:pos.x, y:pos.y, z:pos.z};
 isDragging=true;
-document.getElementById('status').textContent="🟡 DRAGGING - Pull UP to pour";
-document.getElementById('status').style.color="#ffaa00";
-updateInstruction("⬆️ PULL UPWARD to tilt tube ⬆️");
-console.log("DRAG STARTED");
+document.getElementById('status').textContent="🟡 DRAGGING - Move UP to tilt";
+console.log("DRAG STARTED - Y:", e.clientY);
 });
 
 scene.addEventListener('mousemove',function(e){
 if(!isDragging || !tubeAElement || reactionStarted) return;
 e.preventDefault();
 
-// Calculate vertical drag only
+// Calculate how far we've dragged UP (negative delta = moving up)
 const deltaY = e.clientY - dragStartY;
 
-// Move tube horizontally based on mouse X
+// Move tube horizontally
 const pos = tubeAElement.object3D.position;
 pos.x = tubeStartPos.x + (e.clientX - dragStartY) * 0.002;
 pos.z = tubeStartPos.z + deltaY * 0.002;
 
-// TILT based on vertical drag - SIMPLE AND DIRECT
-if(deltaY < -20) { // Dragging UP
-    pourAngle = Math.min(75, Math.abs(deltaY) * 0.5);
-    tubeAElement.setAttribute('rotation', `-${pourAngle} 0 0`);
+// DIRECT TILT CONTROL - ALWAYS tilt based on drag
+if(deltaY < 0) { // Dragging UP
+    currentTilt = Math.min(70, Math.abs(deltaY) * 0.4);
+    tubeAElement.setAttribute('rotation', `-${currentTilt} 0 0`);
+    console.log("TILTING UP - Angle:", currentTilt);
     
-    // Start pouring when tilted enough
-    if(pourAngle > 20 && pouredAmount < 0.35) {
+    if(currentTilt > 20 && pouredAmount < 0.35) {
         startPouring();
     }
-} else {
+} else { // Dragging DOWN or not moving
+    currentTilt = 0;
     tubeAElement.setAttribute('rotation', `0 0 0`);
     stopPouring();
 }
@@ -172,10 +164,9 @@ scene.addEventListener('mouseup',function(e){
 if(!isDragging) return;
 isDragging=false;
 stopPouring();
+currentTilt = 0;
 tubeAElement.setAttribute('rotation', `0 0 0`);
-document.getElementById('status').textContent="✅ Ready - Drag BLUE tube UP to pour";
-document.getElementById('status').style.color="#00ff00";
-updateInstruction("⬆️ DRAG BLUE TUBE UPWARD to tilt and pour ⬆️");
+document.getElementById('status').textContent="✅ Ready - Drag BLUE tube UP to tilt";
 console.log("DRAG ENDED");
 });
 
@@ -188,10 +179,8 @@ dragStartY=touch.clientY;
 const pos=tubeAElement.object3D.position;
 tubeStartPos={x:pos.x, y:pos.y, z:pos.z};
 isDragging=true;
-document.getElementById('status').textContent="🟡 DRAGGING - Pull UP to pour";
-document.getElementById('status').style.color="#ffaa00";
-updateInstruction("⬆️ PULL UPWARD to tilt tube ⬆️");
-console.log("TOUCH START");
+document.getElementById('status').textContent="🟡 DRAGGING - Move UP to tilt";
+console.log("TOUCH START - Y:", touch.clientY);
 });
 
 scene.addEventListener('touchmove',function(e){
@@ -199,24 +188,25 @@ if(!isDragging || !tubeAElement || reactionStarted) return;
 e.preventDefault();
 const touch=e.touches[0];
 
-// Calculate vertical drag only
+// Calculate how far we've dragged UP (negative delta = moving up)
 const deltaY = touch.clientY - dragStartY;
 
-// Move tube horizontally based on touch X
+// Move tube horizontally
 const pos = tubeAElement.object3D.position;
 pos.x = tubeStartPos.x + (touch.clientX - dragStartY) * 0.002;
 pos.z = tubeStartPos.z + deltaY * 0.002;
 
-// TILT based on vertical drag - SIMPLE AND DIRECT
-if(deltaY < -20) { // Dragging UP
-    pourAngle = Math.min(75, Math.abs(deltaY) * 0.5);
-    tubeAElement.setAttribute('rotation', `-${pourAngle} 0 0`);
+// DIRECT TILT CONTROL - ALWAYS tilt based on drag
+if(deltaY < 0) { // Dragging UP
+    currentTilt = Math.min(70, Math.abs(deltaY) * 0.4);
+    tubeAElement.setAttribute('rotation', `-${currentTilt} 0 0`);
+    console.log("TILTING UP - Angle:", currentTilt);
     
-    // Start pouring when tilted enough
-    if(pourAngle > 20 && pouredAmount < 0.35) {
+    if(currentTilt > 20 && pouredAmount < 0.35) {
         startPouring();
     }
-} else {
+} else { // Dragging DOWN or not moving
+    currentTilt = 0;
     tubeAElement.setAttribute('rotation', `0 0 0`);
     stopPouring();
 }
@@ -228,54 +218,39 @@ scene.addEventListener('touchend',function(e){
 if(!isDragging) return;
 isDragging=false;
 stopPouring();
+currentTilt = 0;
 tubeAElement.setAttribute('rotation', `0 0 0`);
-document.getElementById('status').textContent="✅ Ready - Drag BLUE tube UP to pour";
-document.getElementById('status').style.color="#00ff00";
-updateInstruction("⬆️ DRAG BLUE TUBE UPWARD to tilt and pour ⬆️");
+document.getElementById('status').textContent="✅ Ready - Drag BLUE tube UP to tilt";
 console.log("TOUCH END");
 });
 
 scene.addEventListener('click',function(e){ e.preventDefault(); return false; });
 });
 
-// SIMPLE POURING FUNCTION
 function startPouring() {
     if(pouredAmount >= 0.35 || reactionStarted) return;
     
-    console.log("💧 POURING! Angle: " + pourAngle);
-    document.getElementById('status').textContent="💧 POURING LIQUID! Keep pulling UP";
-    document.getElementById('status').style.color="#00ccff";
-    updateInstruction("💧 LIQUID TRANSFERRING! Keep pulling UP 💧");
+    console.log("💧 POURING! Tilt:", currentTilt);
+    document.getElementById('status').textContent="💧 POURING LIQUID! Tilt: " + Math.round(currentTilt) + "°";
     
     // Transfer liquid
-    liquidLevelA -= 0.005;
-    liquidLevelB += 0.005;
-    pouredAmount += 0.005;
-    
-    // Keep within bounds
-    if(liquidLevelA < 0.1) liquidLevelA = 0.1;
-    if(liquidLevelB > 0.6) liquidLevelB = 0.6;
+    liquidLevelA = Math.max(0.1, liquidLevelA - 0.003);
+    liquidLevelB = Math.min(0.6, liquidLevelB + 0.003);
+    pouredAmount += 0.003;
     
     updateLiquidLevels();
-    
-    // Create droplets
-    for(let i=0; i<3; i++) {
-        setTimeout(() => createDroplet(), i * 50);
-    }
+    createDroplet();
     
     // Mix colors
     const mixPercent = pouredAmount / 0.35;
     mixLiquids(Math.min(1, mixPercent));
     
-    // Check if reaction complete
     if(pouredAmount >= 0.35) {
         completeReaction();
     }
 }
 
-function stopPouring() {
-    // Nothing needed
-}
+function stopPouring() {}
 
 function createDroplet() {
     if(!tubeAElement || !tubeBElement) return;
@@ -285,8 +260,8 @@ function createDroplet() {
     drop.setAttribute('color', '#0066cc');
     drop.setAttribute('opacity', '0.9');
     
-    // Position at tube opening
-    const tiltRad = pourAngle * Math.PI / 180;
+    // Position at tilted tube opening
+    const tiltRad = currentTilt * Math.PI / 180;
     const startX = tubeAElement.object3D.position.x;
     const startY = tubeAElement.object3D.position.y + 0.3 - Math.sin(tiltRad) * 0.3;
     const startZ = tubeAElement.object3D.position.z + Math.cos(tiltRad) * 0.3;
@@ -298,25 +273,21 @@ function createDroplet() {
     const targetY = tubeBElement.object3D.position.y + 0.4;
     const targetZ = tubeBElement.object3D.position.z;
     
-    // Animate
     drop.setAttribute('animation', {
         property: 'position',
         to: `${targetX} ${targetY} ${targetZ}`,
-        dur: 600,
+        dur: 500,
         easing: 'easeInQuad'
     });
     
     drop.setAttribute('animation__opacity', {
         property: 'opacity',
         to: '0',
-        dur: 600
+        dur: 500
     });
     
     document.querySelector('a-scene').appendChild(drop);
-    
-    setTimeout(() => {
-        if(drop.parentNode) drop.parentNode.removeChild(drop);
-    }, 600);
+    setTimeout(() => drop.remove(), 500);
 }
 
 function updateLiquidLevels() {
@@ -329,17 +300,12 @@ function updateLiquidLevels() {
         liquidA.setAttribute('height', liquidLevelA);
         liquidA.setAttribute('position', `0 ${0.15 + liquidLevelA/2} 0`);
     }
-    if(surfaceA) {
-        surfaceA.setAttribute('position', `0 ${0.15 + liquidLevelA} 0`);
-    }
-    
+    if(surfaceA) surfaceA.setAttribute('position', `0 ${0.15 + liquidLevelA} 0`);
     if(liquidB) {
         liquidB.setAttribute('height', liquidLevelB);
         liquidB.setAttribute('position', `0 ${0.15 + liquidLevelB/2} 0`);
     }
-    if(surfaceB) {
-        surfaceB.setAttribute('position', `0 ${0.15 + liquidLevelB} 0`);
-    }
+    if(surfaceB) surfaceB.setAttribute('position', `0 ${0.15 + liquidLevelB} 0`);
 }
 
 function mixLiquids(amount) {
@@ -354,7 +320,6 @@ function mixLiquids(amount) {
         document.querySelector('#liquidB')?.setAttribute('color', GREEN_COLOR);
         document.querySelector('#surfaceB')?.setAttribute('color', GREEN_COLOR);
     } else {
-        // Simple color blend
         const mixedColor = `rgb(${Math.round(0 + 200 * amount)}, ${Math.round(100 + 155 * amount)}, ${Math.round(100 + 100 * amount)})`;
         document.querySelector('#liquidA')?.setAttribute('color', mixedColor);
         document.querySelector('#surfaceA')?.setAttribute('color', mixedColor);
@@ -370,14 +335,14 @@ function updatePositionInfo() {
         const distance = Math.sqrt(Math.pow(posA.x-posB.x,2) + Math.pow(posA.z-posB.z,2));
         
         document.getElementById('position-info').innerHTML = 
-            '<strong>🔵 BLUE TUBE</strong><br>' +
+            '<strong style="color:#88ccff;">🔵 BLUE TUBE</strong><br>' +
             'Position: ' + posA.x.toFixed(2) + ', ' + posA.z.toFixed(2) + '<br>' +
-            'Tilt: ' + Math.round(pourAngle) + '°<br>' +
+            '<span style="color:#ffaa00; font-size:18px;">⬆️ TILT: ' + Math.round(currentTilt) + '°</span><br>' +
             'Liquid: ' + Math.round((liquidLevelA/0.45)*100) + '%<br>' +
-            '<strong>🟡 YELLOW TUBE</strong><br>' +
+            '<strong style="color:#ffcc00;">🟡 YELLOW TUBE</strong><br>' +
             'Liquid: ' + Math.round((liquidLevelB/0.45)*100) + '%<br>' +
             '<strong>📏 Distance: ' + distance.toFixed(2) + '</strong><br>' +
-            '<strong>💧 Poured: ' + Math.round((pouredAmount/0.35)*100) + '%</strong>';
+            '<strong style="color:#00ff00;">💧 Poured: ' + Math.round((pouredAmount/0.35)*100) + '%</strong>';
     }
 }
 
@@ -388,11 +353,10 @@ function updateInstruction(msg) {
 
 function updateStatus() {
     if(tubeAVisible && tubeBVisible) {
-        document.getElementById('status').textContent = "✅ READY! Drag BLUE tube UP to pour";
+        document.getElementById('status').textContent = "✅ READY! Drag BLUE tube UP to tilt";
         document.getElementById('status').style.color = "#00ff00";
     } else {
         document.getElementById('status').textContent = "⏳ Scan both markers to begin";
-        document.getElementById('status').style.color = "#ffffff";
     }
 }
 
@@ -400,45 +364,14 @@ function completeReaction() {
     reactionStarted = true;
     stopPouring();
     mixLiquids(1.0);
-    
-    document.getElementById('status').textContent = "🧪 REACTION COMPLETE! Green solution created!";
-    document.getElementById('status').style.color = "#00ff00";
-    updateInstruction("✅ EXPERIMENT SUCCESSFUL! Press Reset to try again ✅");
-    
-    // Celebration bubbles
-    for(let i = 0; i < 20; i++) {
-        setTimeout(() => {
-            if(tubeBElement) {
-                const pos = tubeBElement.object3D.position;
-                const bubble = document.createElement('a-sphere');
-                bubble.setAttribute('radius', '0.02');
-                bubble.setAttribute('color', GREEN_COLOR);
-                bubble.setAttribute('position', {
-                    x: pos.x + (Math.random()-0.5)*0.2,
-                    y: pos.y + 0.2,
-                    z: pos.z + (Math.random()-0.5)*0.2
-                });
-                bubble.setAttribute('animation', {
-                    property: 'position',
-                    to: `${pos.x + (Math.random()-0.5)*0.3} ${pos.y + 0.8} ${pos.z + (Math.random()-0.5)*0.3}`,
-                    dur: 1200
-                });
-                bubble.setAttribute('animation__opacity', {
-                    property: 'opacity',
-                    to: '0',
-                    dur: 1200
-                });
-                document.querySelector('a-scene').appendChild(bubble);
-                setTimeout(() => bubble.remove(), 1200);
-            }
-        }, i * 100);
-    }
+    document.getElementById('status').textContent = "🧪 REACTION COMPLETE!";
+    updateInstruction("✅ EXPERIMENT SUCCESSFUL! Press Reset ✅");
 }
 
 function resetExperiment() {
     reactionStarted = false;
     isDragging = false;
-    pourAngle = 0;
+    currentTilt = 0;
     pouredAmount = 0;
     liquidLevelA = 0.45;
     liquidLevelB = 0.45;
@@ -450,51 +383,53 @@ function resetExperiment() {
     
     updateLiquidLevels();
     mixLiquids(0);
-    
     document.getElementById('status').textContent = "Scan both markers";
-    document.getElementById('status').style.color = "white";
     updateStatus();
     updatePositionInfo();
     updateInstruction("📷 Point camera at both test tube markers");
-    
-    console.log("RESET");
 }
 
-// Manual test function
-window.testPour = function() {
-    if(!tubeAElement || !tubeBElement) {
+// FORCE TILT TEST BUTTON
+window.forceTilt = function() {
+    if(!tubeAElement) {
         alert("Scan markers first!");
         return;
     }
-    pourAngle = 45;
+    currentTilt = 45;
     tubeAElement.setAttribute('rotation', '-45 0 0');
-    startPouring();
-    startPouring();
-    startPouring();
-    startPouring();
-    startPouring();
-};
+    document.getElementById('status').textContent = "✅ TILT TEST - Tube at 45°";
+    console.log("FORCE TILT - 45 degrees");
+}
+
+window.resetTilt = function() {
+    if(!tubeAElement) return;
+    currentTilt = 0;
+    tubeAElement.setAttribute('rotation', '0 0 0');
+    document.getElementById('status').textContent = "✅ Tilt reset";
+    console.log("TILT RESET");
+}
 </script>
 </head>
 
 <body>
 
 <div id="hud">
-<h3>🧪 Chemical Mixing - Simple Pour</h3>
+<h3>🧪 Chemical Mixing - Direct Tilt Control</h3>
 <p id="status">Scan both markers</p>
 <button onclick="resetExperiment()">🔄 Reset Experiment</button>
-<button onclick="window.testPour()" style="background:#ff5500; margin-top:5px;">💧 Test Pour (Click me!)</button>
+<button onclick="window.forceTilt()" style="background:#ff5500;">📐 Force Tilt 45° (Test)</button>
+<button onclick="window.resetTilt()" style="background:#666;">↩️ Reset Tilt</button>
 </div>
 
 <div class="position-info" id="position-info">
-<strong>🔵 BLUE TUBE</strong><br>
+<strong style="color:#88ccff;">🔵 BLUE TUBE</strong><br>
 Position: --<br>
-Tilt: 0°<br>
+<span style="color:#ffaa00; font-size:18px;">⬆️ TILT: 0°</span><br>
 Liquid: --%<br>
-<strong>🟡 YELLOW TUBE</strong><br>
+<strong style="color:#ffcc00;">🟡 YELLOW TUBE</strong><br>
 Liquid: --%<br>
 <strong>📏 Distance: --</strong><br>
-<strong>💧 Poured: 0%</strong>
+<strong style="color:#00ff00;">💧 Poured: 0%</strong>
 </div>
 
 <div class="instruction">
