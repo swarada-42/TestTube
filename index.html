@@ -96,9 +96,9 @@ tubeBElement=document.querySelector('#tubeB');
 document.getElementById('status').textContent="Yellow tube found";
 }
 if(tubeAVisible && tubeBVisible){
-document.getElementById('status').textContent="Ready - Drag blue tube close to pour";
+document.getElementById('status').textContent="Ready - Drag blue tube to pour";
 updatePositionInfo();
-updateInstruction("Drag blue tube close to yellow tube (1.0-1.5 distance)");
+updateInstruction("⬆️ DRAG UP to tilt and pour liquid");
 }
 });
 
@@ -144,7 +144,7 @@ tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
 }
 isDragging=true;
 document.getElementById('status').textContent="Dragging...";
-updateInstruction("Move closer to yellow tube");
+updateInstruction("⬆️ DRAG UP to tilt the tube");
 });
 
 scene.addEventListener('mousemove',function(e){
@@ -163,27 +163,18 @@ const newZ=tubeStartPos.z+deltaZ;
 tubeAElement.object3D.position.x=newX;
 tubeAElement.object3D.position.z=newZ;
 
-// Calculate tilt angle based on drag direction and distance
-if(isCloseEnoughForPouring()){
-// When close enough, tilt based on vertical drag
-pourAngle = Math.max(0, Math.min(-75, -deltaScreenY * 0.4));
+// ALWAYS calculate tilt based on vertical drag - removed distance requirement
+pourAngle = Math.max(0, Math.min(-75, -deltaScreenY * 0.3));
 tubeAElement.setAttribute('rotation', `${pourAngle} ${markerARotation} 0`);
+
+// Pouring is active if tilted enough, regardless of distance
 isPouringActive = pourAngle < -15;
-updateInstruction(isPouringActive ? "💧 POURING LIQUID! Keep dragging up" : "⬆️ Drag UP to tilt and pour");
-}else{
-// Normal dragging tilt
-const tiltAngle = Math.min(20, Math.abs(deltaScreenY) * 0.1);
-const tiltDirection = deltaScreenY > 0 ? -tiltAngle : tiltAngle;
-tubeAElement.setAttribute('rotation', `${tiltDirection} ${markerARotation} 0`);
-isPouringActive = false;
-updateInstruction("⬆️ Get closer to yellow tube (1.0-1.5) to pour");
-}
 
 updatePositionInfo();
 checkDistanceForReaction();
 
 // If pouring is active, create pouring effect
-if(isPouringActive && isCloseEnoughForPouring() && !reactionStarted){
+if(isPouringActive && !reactionStarted){
 startPouring();
 }else{
 stopPouring();
@@ -205,12 +196,8 @@ const pos=tubeAElement.object3D.position;
 tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
 }
 
-if(!reactionStarted && isCloseEnoughForReaction()){
-completeReaction();
-}else{
 document.getElementById('status').textContent="Ready - Drag blue tube";
-updateInstruction("Drag blue tube close to yellow tube to pour");
-}
+updateInstruction("⬆️ DRAG UP to tilt and pour liquid");
 });
 
 // Touch events for mobile
@@ -227,7 +214,7 @@ tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
 }
 isDragging=true;
 document.getElementById('status').textContent="Dragging...";
-updateInstruction("Move closer to yellow tube");
+updateInstruction("⬆️ DRAG UP to tilt the tube");
 });
 
 scene.addEventListener('touchmove',function(e){
@@ -247,27 +234,18 @@ const newZ=tubeStartPos.z+deltaZ;
 tubeAElement.object3D.position.x=newX;
 tubeAElement.object3D.position.z=newZ;
 
-// Calculate tilt angle based on drag direction and distance
-if(isCloseEnoughForPouring()){
-// When close enough, tilt based on vertical drag
-pourAngle = Math.max(0, Math.min(-75, -deltaScreenY * 0.4));
+// ALWAYS calculate tilt based on vertical drag - removed distance requirement
+pourAngle = Math.max(0, Math.min(-75, -deltaScreenY * 0.3));
 tubeAElement.setAttribute('rotation', `${pourAngle} ${markerARotation} 0`);
+
+// Pouring is active if tilted enough, regardless of distance
 isPouringActive = pourAngle < -15;
-updateInstruction(isPouringActive ? "💧 POURING LIQUID! Keep dragging up" : "⬆️ Drag UP to tilt and pour");
-}else{
-// Normal dragging tilt
-const tiltAngle = Math.min(20, Math.abs(deltaScreenY) * 0.1);
-const tiltDirection = deltaScreenY > 0 ? -tiltAngle : tiltAngle;
-tubeAElement.setAttribute('rotation', `${tiltDirection} ${markerARotation} 0`);
-isPouringActive = false;
-updateInstruction("⬆️ Get closer to yellow tube (1.0-1.5) to pour");
-}
 
 updatePositionInfo();
 checkDistanceForReaction();
 
 // If pouring is active, create pouring effect
-if(isPouringActive && isCloseEnoughForPouring() && !reactionStarted){
+if(isPouringActive && !reactionStarted){
 startPouring();
 }else{
 stopPouring();
@@ -289,12 +267,8 @@ const pos=tubeAElement.object3D.position;
 tubeStartPos={x:pos.x,y:pos.y,z:pos.z};
 }
 
-if(!reactionStarted && isCloseEnoughForReaction()){
-completeReaction();
-}else{
 document.getElementById('status').textContent="Ready - Drag blue tube";
-updateInstruction("Drag blue tube close to yellow tube to pour");
-}
+updateInstruction("⬆️ DRAG UP to tilt and pour liquid");
 });
 
 // Prevent default click behavior
@@ -305,40 +279,17 @@ return false;
 });
 });
 
-function isCloseEnoughForPouring(){
-if(!tubeAElement||!tubeBElement) return false;
-const posA=tubeAElement.object3D.position;
-const posB=tubeBElement.object3D.position;
-const distance=Math.sqrt(
-Math.pow(posA.x-posB.x,2)+
-Math.pow(posA.z-posB.z,2)
-);
-return distance >= 0.8 && distance <= 1.8;
-}
-
-function isCloseEnoughForReaction(){
-if(!tubeAElement||!tubeBElement) return false;
-const posA=tubeAElement.object3D.position;
-const posB=tubeBElement.object3D.position;
-const distance=Math.sqrt(
-Math.pow(posA.x-posB.x,2)+
-Math.pow(posA.z-posB.z,2)
-);
-return distance >= 0.8 && distance <= 1.8 && pouredAmount >= MAX_POUR * 0.8;
-}
-
 function startPouring(){
 if(pourInterval) return;
 pourInterval = setInterval(() => {
 if(pouredAmount < MAX_POUR && !reactionStarted){
-const pourRate = Math.abs(pourAngle) / 90 * 0.008;
-liquidLevelA = Math.max(0.12, liquidLevelA - pourRate);
-liquidLevelB = Math.min(0.58, liquidLevelB + pourRate);
+const pourRate = Math.abs(pourAngle) / 90 * 0.01;
+liquidLevelA = Math.max(0.1, liquidLevelA - pourRate);
+liquidLevelB = Math.min(0.6, liquidLevelB + pourRate);
 pouredAmount += pourRate;
 updateLiquidLevels();
 createPouringDroplet();
-createPouringDroplet(); // Double droplets for realistic flow
-createSplashEffect();
+createPouringDroplet();
 }
 }, 30);
 }
@@ -354,9 +305,7 @@ function createPouringDroplet(){
 if(!tubeAElement || !tubeBElement) return;
 
 // Create multiple droplets with slight variations
-const dropletCount = 2;
-for(let i=0; i<dropletCount; i++){
-setTimeout(() => {
+for(let i=0; i<2; i++){
 const drop=document.createElement('a-sphere');
 drop.setAttribute('radius',0.012 + Math.random()*0.008);
 drop.setAttribute('color',BLUE_COLOR);
@@ -366,9 +315,9 @@ drop.setAttribute('roughness',0.2);
 
 // Calculate drop start position from tilted tube opening
 const tiltRad = pourAngle * Math.PI / 180;
-const startX = tubeAElement.object3D.position.x + (Math.random() - 0.5) * 0.03;
-const startY = tubeAElement.object3D.position.y + 0.3 - Math.sin(tiltRad) * 0.3 + (Math.random() * 0.04);
-const startZ = tubeAElement.object3D.position.z + Math.cos(tiltRad) * 0.3 + (Math.random() - 0.5) * 0.03;
+const startX = tubeAElement.object3D.position.x + (Math.random() - 0.5) * 0.05;
+const startY = tubeAElement.object3D.position.y + 0.3 - Math.sin(tiltRad) * 0.35 + (Math.random() * 0.05);
+const startZ = tubeAElement.object3D.position.z + Math.cos(tiltRad) * 0.35 + (Math.random() - 0.5) * 0.05;
 
 drop.setAttribute('position',{
 x:startX,
@@ -377,31 +326,24 @@ z:startZ
 });
 
 // Target position (yellow tube opening)
-const targetX = tubeBElement.object3D.position.x + (Math.random() - 0.5) * 0.05;
+const targetX = tubeBElement.object3D.position.x + (Math.random() - 0.5) * 0.08;
 const targetY = tubeBElement.object3D.position.y + 0.4 + (Math.random() * 0.1);
-const targetZ = tubeBElement.object3D.position.z + (Math.random() - 0.5) * 0.05;
+const targetZ = tubeBElement.object3D.position.z + (Math.random() - 0.5) * 0.08;
 
 // Parabolic arc animation for realistic pour
 drop.setAttribute('animation',{
 property:'position',
 from:`${startX} ${startY} ${startZ}`,
 to:`${targetX} ${targetY} ${targetZ}`,
-dur:600 + Math.random() * 200,
+dur:500 + Math.random() * 150,
 easing:'easeInQuad'
-});
-
-drop.setAttribute('animation__scale',{
-property:'scale',
-from:'1 1 1',
-to:'0.6 0.6 0.6',
-dur:600
 });
 
 drop.setAttribute('animation__opacity',{
 property:'opacity',
 from:'0.9',
-to:'0.3',
-dur:600
+to:'0',
+dur:500
 });
 
 document.querySelector('a-scene').appendChild(drop);
@@ -411,49 +353,8 @@ setTimeout(()=>{
 if(drop.parentNode){
 drop.parentNode.removeChild(drop);
 }
-},700);
-}, i * 50);
+},550);
 }
-}
-
-function createSplashEffect(){
-if(!tubeBElement) return;
-
-// Create small splash when droplet hits liquid surface
-const splash = document.createElement('a-ring');
-splash.setAttribute('radius-inner', 0.01);
-splash.setAttribute('radius-outer', 0.03);
-splash.setAttribute('color', YELLOW_COLOR);
-splash.setAttribute('opacity', 0.6);
-splash.setAttribute('rotation', '-90 0 0');
-
-const pos = tubeBElement.object3D.position;
-splash.setAttribute('position', {
-x: pos.x + (Math.random() - 0.5) * 0.1,
-y: pos.y + liquidLevelB * 0.45 + 0.2,
-z: pos.z + (Math.random() - 0.5) * 0.1
-});
-
-splash.setAttribute('animation', {
-property: 'scale',
-from: '0.5 0.5 0.5',
-to: '2 2 2',
-dur: 400,
-easing: 'easeOutQuad'
-});
-
-splash.setAttribute('animation__opacity', {
-property: 'opacity',
-from: '0.6',
-to: '0',
-dur: 400
-});
-
-document.querySelector('a-scene').appendChild(splash);
-
-setTimeout(() => {
-if(splash.parentNode) splash.parentNode.removeChild(splash);
-}, 400);
 }
 
 function checkDistanceForReaction(){
@@ -468,38 +369,34 @@ Math.pow(posA.z-posB.z,2)
 // Calculate mixing based on poured amount
 const mixAmount = Math.min(1.0, pouredAmount / MAX_POUR);
 
-if(distance >= 0.8 && distance <= 1.8){
 if(isPouringActive){
 mixLiquids(mixAmount);
 document.getElementById('status').textContent=`💧 POURING... ${Math.round(mixAmount*100)}% mixed`;
 document.getElementById('status').style.color="#00ccff";
-updateInstruction("Keep pouring! Liquid is transferring");
+updateInstruction(`Tilt: ${Math.abs(pourAngle).toFixed(0)}° - Keep dragging UP`);
+if(distance > 2.0){
+updateInstruction(`⚠️ Tube is too far (${distance.toFixed(1)}) - Move closer to yellow tube`);
+}
 }else if(pouredAmount > 0){
 mixLiquids(mixAmount);
 document.getElementById('status').textContent=`⚗️ Mixed: ${Math.round(mixAmount*100)}% - Drag UP to pour more`;
 document.getElementById('status').style.color="#ff9900";
-updateInstruction("⬆️ Drag UP to continue pouring");
+updateInstruction("⬆️ DRAG UP to continue pouring");
 }else{
 mixLiquids(0);
 document.getElementById('status').textContent="Ready to pour - Drag UP";
 document.getElementById('status').style.color="#ffffff";
-updateInstruction("⬆️ Drag UP to tilt and pour blue liquid into yellow");
+updateInstruction("⬆️ DRAG UP to tilt and pour blue liquid");
 }
-}else if(distance < 0.8){
-mixLiquids(0);
-document.getElementById('status').textContent="⚠️ Too close! Move slightly away";
-document.getElementById('status').style.color="#ff4444";
-updateInstruction("Move blue tube slightly away from yellow");
-}else{
-mixLiquids(0);
-document.getElementById('status').textContent="📏 Too far - get closer";
-document.getElementById('status').style.color="#ffffff";
-updateInstruction("Drag blue tube closer to yellow tube");
+
+// Check for reaction completion
+if(pouredAmount >= MAX_POUR * 0.7 && !reactionStarted && distance < 2.0){
+completeReaction();
 }
 }
 
 function updateLiquidLevels(){
-// Update blue liquid with smoother animation
+// Update blue liquid
 const newHeightA = liquidLevelA * 0.45;
 const newPositionA = 0.15 + (newHeightA/2);
 const liquidA = document.querySelector('#liquidA');
@@ -512,7 +409,7 @@ if(surfaceA){
 surfaceA.setAttribute('position', `0 ${0.15 + newHeightA} 0`);
 }
 
-// Update yellow liquid with smoother animation
+// Update yellow liquid
 const newHeightB = liquidLevelB * 0.45;
 const newPositionB = 0.15 + (newHeightB/2);
 const liquidB = document.querySelector('#liquidB');
@@ -548,7 +445,7 @@ if(surfaceA) surfaceA.setAttribute('color',GREEN_COLOR);
 if(liquidB) liquidB.setAttribute('color',GREEN_COLOR);
 if(surfaceB) surfaceB.setAttribute('color',GREEN_COLOR);
 }else{
-// Smooth color blending for realistic chemical reaction
+// Smooth color blending
 const blueR=parseInt(BLUE_COLOR.substr(1,2),16);
 const blueG=parseInt(BLUE_COLOR.substr(3,2),16);
 const blueB=parseInt(BLUE_COLOR.substr(5,2),16);
@@ -556,7 +453,6 @@ const yellowR=parseInt(YELLOW_COLOR.substr(1,2),16);
 const yellowG=parseInt(YELLOW_COLOR.substr(3,2),16);
 const yellowB=parseInt(YELLOW_COLOR.substr(5,2),16);
 
-// Non-linear blending for more realistic chemical reaction
 const blendFactor = Math.pow(mixAmount, 0.8);
 const mixedR=Math.round(blueR+(yellowR-blueR)*blendFactor * 0.7);
 const mixedG=Math.round(blueG+(yellowG-blueG)*blendFactor);
@@ -607,7 +503,7 @@ if(reactionStarted){
 document.getElementById('status').textContent="🧪 REACTION COMPLETE! Green solution created";
 updateInstruction("✅ Experiment successful! Press Reset to try again");
 }else{
-document.getElementById('status').textContent="Ready - Drag blue tube";
+document.getElementById('status').textContent="Ready - Drag blue tube to pour";
 }
 }else if(tubeAVisible){
 document.getElementById('status').textContent="Blue tube found - Scan yellow marker";
