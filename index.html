@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Chemical Mixing - 45° Trigger</title>
+<title>AR Chemical Mixing - Precision 45° Trigger</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
@@ -19,6 +19,7 @@ padding:15px;
 border-radius:10px;
 z-index:1000;
 border-left:5px solid #00ccff;
+box-shadow:0 4px 15px rgba(0,0,0,0.5);
 }
 button{
 background:#4CAF50;
@@ -30,6 +31,11 @@ cursor:pointer;
 margin-top:5px;
 width:100%;
 font-weight:bold;
+transition:0.2s;
+}
+button:hover{
+background:#45a049;
+transform:scale(1.02);
 }
 .position-info{
 position:absolute;
@@ -43,6 +49,7 @@ font-size:14px;
 z-index:1000;
 min-width:220px;
 border-right:5px solid #ffaa00;
+box-shadow:0 4px 15px rgba(0,0,0,0.5);
 }
 .instruction{
 position:absolute;
@@ -59,6 +66,12 @@ font-weight:bold;
 z-index:1000;
 box-shadow:0 4px 15px rgba(0,0,0,0.3);
 border:2px solid white;
+animation:pulse 2s infinite;
+}
+@keyframes pulse{
+0%{transform:translateX(-50%) scale(1);}
+50%{transform:translateX(-50%) scale(1.02);}
+100%{transform:translateX(-50%) scale(1);}
 }
 .progress-bar{
 position:absolute;
@@ -78,23 +91,64 @@ height:100%;
 width:0%;
 background:linear-gradient(90deg, #00ff00, #00cc00);
 border-radius:10px;
-transition:width 0.3s;
+transition:width 0.1s;
 }
-.angle-indicator{
+.angle-container{
 position:absolute;
 top:50%;
 left:50%;
 transform:translate(-50%, -50%);
-font-size:48px;
-font-weight:bold;
-color:rgba(255,255,255,0.9);
-text-shadow:2px 2px 10px rgba(0,0,0,0.5);
+text-align:center;
 z-index:1000;
 pointer-events:none;
+}
+.angle-display{
+font-size:72px;
+font-weight:bold;
+color:white;
+text-shadow:0 0 20px rgba(0,0,0,0.8);
+background:rgba(0,0,0,0.5);
+padding:10px 40px;
+border-radius:60px;
+border:4px solid white;
+margin-bottom:10px;
+transition:all 0.2s;
+}
+.angle-label{
+font-size:24px;
+color:white;
+text-shadow:0 0 10px rgba(0,0,0,0.8);
 background:rgba(0,0,0,0.3);
-padding:10px 30px;
-border-radius:50px;
-border:3px solid white;
+padding:5px 20px;
+border-radius:30px;
+display:inline-block;
+}
+.target-45{
+position:absolute;
+top:30%;
+left:50%;
+transform:translateX(-50%);
+font-size:28px;
+color:#ffaa00;
+font-weight:bold;
+text-shadow:0 0 10px rgba(0,0,0,0.8);
+background:rgba(0,0,0,0.3);
+padding:5px 20px;
+border-radius:30px;
+border:2px solid #ffaa00;
+z-index:1000;
+}
+.reaction-flash{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:radial-gradient(circle, rgba(0,255,0,0.3) 0%, rgba(0,255,0,0) 70%);
+pointer-events:none;
+z-index:2000;
+opacity:0;
+transition:opacity 0.3s;
 }
 </style>
 
@@ -120,12 +174,9 @@ let liquidLevelB=0.45;
 let tiltAngle=0;
 let pouredAmount=0;
 let isTilted=false;
-let pourIntensity=0;
-let lastPourTime=0;
-let hasReached45 = false;
 
-// 45 DEGREE TRIGGER
 const TRIGGER_ANGLE = 45;
+let hasTriggered = false;
 
 document.addEventListener('DOMContentLoaded',function(){
 const scene=document.querySelector('a-scene');
@@ -135,16 +186,19 @@ if(e.target.id==='markerA'){
 tubeAVisible=true;
 tubeAElement=document.querySelector('#tubeA');
 document.getElementById('status').textContent="✅ Blue tube ready";
+document.getElementById('status').style.color="#00ff00";
 updateLiquidLevels();
 }
 if(e.target.id==='markerB'){
 tubeBVisible=true;
 tubeBElement=document.querySelector('#tubeB');
+document.getElementById('status').textContent="✅ Yellow tube ready";
+document.getElementById('status').style.color="#00ff00";
 }
-if(tubeAVisible && tubeBVisible){
-document.getElementById('status').textContent="✅ READY! Tilt to 45° to start reaction";
-updatePositionInfo();
-updateInstruction("👇 DRAG BLUE TUBE DOWNWARD to reach 45° 👇");
+if(tubeAVisible && tubeBVisible && !reactionComplete){
+document.getElementById('status').textContent="🎯 READY! Drag DOWN to reach 45°";
+document.getElementById('status').style.color="#00ff00";
+updateInstruction("👇 DRAG BLUE TUBE DOWNWARD - Watch the angle 👇");
 }
 });
 
@@ -163,8 +217,7 @@ dragStartX=e.clientX;
 const pos=tubeAElement.object3D.position;
 tubeStartPos={x:pos.x, y:pos.y, z:pos.z};
 isDragging=true;
-isTilted=false;
-document.getElementById('status').textContent="🟡 DRAG DOWN to increase tilt";
+document.getElementById('status').textContent="📐 DRAGGING - Keep going to 45°";
 });
 
 scene.addEventListener('mousemove',function(e){
@@ -179,41 +232,35 @@ const pos = tubeAElement.object3D.position;
 pos.x = tubeStartPos.x + deltaX * 0.003;
 pos.z = tubeStartPos.z + deltaY * 0.003;
 
-// CALCULATE TILT ANGLE (0-90 degrees)
-if(deltaY > 0) { // Dragging DOWN = tilt forward
-    tiltAngle = Math.min(90, deltaY * 0.4);
+// Calculate tilt angle
+if(deltaY > 0) {
+    tiltAngle = Math.min(90, deltaY * 0.35);
     tubeAElement.setAttribute('rotation', `-${tiltAngle} 0 0`);
-    isTilted = true;
     
-    // SHOW ANGLE
-    document.querySelector('.angle-indicator').style.display = 'block';
-    document.querySelector('.angle-indicator').innerHTML = `${Math.round(tiltAngle)}°`;
+    // Update angle display
+    document.querySelector('.angle-display').innerHTML = `${Math.round(tiltAngle)}°`;
+    document.querySelector('.progress-fill').style.width = Math.min(100, (tiltAngle/TRIGGER_ANGLE)*100) + '%';
     
-    // CHANGE COLOR based on angle
+    // Visual feedback based on angle
     if(tiltAngle >= TRIGGER_ANGLE) {
-        document.querySelector('.angle-indicator').style.color = '#00ff00';
-        document.querySelector('.angle-indicator').style.borderColor = '#00ff00';
+        document.querySelector('.angle-display').style.color = '#00ff00';
+        document.querySelector('.angle-display').style.borderColor = '#00ff00';
+        document.querySelector('.angle-display').style.boxShadow = '0 0 30px #00ff00';
         
-        // TRIGGER REACTION AT 45 DEGREES!
-        if(!reactionStarted && !reactionComplete) {
-            startReaction();
+        if(!hasTriggered && !reactionStarted && !reactionComplete) {
+            triggerReaction();
         }
     } else {
-        document.querySelector('.angle-indicator').style.color = 'white';
-        document.querySelector('.angle-indicator').style.borderColor = 'white';
+        document.querySelector('.angle-display').style.color = 'white';
+        document.querySelector('.angle-display').style.borderColor = 'white';
+        document.querySelector('.angle-display').style.boxShadow = 'none';
     }
     
-    document.getElementById('status').textContent = `📐 Angle: ${Math.round(tiltAngle)}° - Need ${TRIGGER_ANGLE}°`;
-    
-    // Show progress to 45
-    const percentTo45 = Math.min(100, (tiltAngle / TRIGGER_ANGLE) * 100);
-    document.querySelector('.progress-fill').style.width = percentTo45 + '%';
-} 
-else {
+    document.getElementById('status').textContent = `📐 ${Math.round(tiltAngle)}° / 45° - ${Math.round((tiltAngle/45)*100)}% to target`;
+} else {
     tiltAngle = 0;
     tubeAElement.setAttribute('rotation', `0 0 0`);
-    isTilted = false;
-    document.querySelector('.angle-indicator').style.display = 'none';
+    document.querySelector('.angle-display').innerHTML = '0°';
     document.querySelector('.progress-fill').style.width = '0%';
 }
 
@@ -223,13 +270,12 @@ updatePositionInfo();
 scene.addEventListener('mouseup',function(e){
 if(!isDragging) return;
 isDragging=false;
-tubeAElement.setAttribute('rotation', `0 0 0`);
-isTilted = false;
-tiltAngle = 0;
-document.querySelector('.angle-indicator').style.display = 'none';
-document.querySelector('.progress-fill').style.width = '0%';
-if(!reactionComplete) {
-    document.getElementById('status').textContent = "✅ Ready - Drag DOWN to reach 45°";
+if(!reactionStarted && !reactionComplete) {
+    tubeAElement.setAttribute('rotation', `0 0 0`);
+    tiltAngle = 0;
+    document.querySelector('.angle-display').innerHTML = '0°';
+    document.querySelector('.progress-fill').style.width = '0%';
+    document.getElementById('status').textContent = "🎯 Ready - Drag DOWN to 45°";
 }
 });
 
@@ -243,8 +289,7 @@ dragStartX=touch.clientX;
 const pos=tubeAElement.object3D.position;
 tubeStartPos={x:pos.x, y:pos.y, z:pos.z};
 isDragging=true;
-isTilted=false;
-document.getElementById('status').textContent="🟡 DRAG DOWN to increase tilt";
+document.getElementById('status').textContent="📐 DRAGGING - Keep going to 45°";
 });
 
 scene.addEventListener('touchmove',function(e){
@@ -260,41 +305,35 @@ const pos = tubeAElement.object3D.position;
 pos.x = tubeStartPos.x + deltaX * 0.003;
 pos.z = tubeStartPos.z + deltaY * 0.003;
 
-// CALCULATE TILT ANGLE (0-90 degrees)
-if(deltaY > 0) { // Dragging DOWN = tilt forward
-    tiltAngle = Math.min(90, deltaY * 0.4);
+// Calculate tilt angle
+if(deltaY > 0) {
+    tiltAngle = Math.min(90, deltaY * 0.35);
     tubeAElement.setAttribute('rotation', `-${tiltAngle} 0 0`);
-    isTilted = true;
     
-    // SHOW ANGLE
-    document.querySelector('.angle-indicator').style.display = 'block';
-    document.querySelector('.angle-indicator').innerHTML = `${Math.round(tiltAngle)}°`;
+    // Update angle display
+    document.querySelector('.angle-display').innerHTML = `${Math.round(tiltAngle)}°`;
+    document.querySelector('.progress-fill').style.width = Math.min(100, (tiltAngle/TRIGGER_ANGLE)*100) + '%';
     
-    // CHANGE COLOR based on angle
+    // Visual feedback based on angle
     if(tiltAngle >= TRIGGER_ANGLE) {
-        document.querySelector('.angle-indicator').style.color = '#00ff00';
-        document.querySelector('.angle-indicator').style.borderColor = '#00ff00';
+        document.querySelector('.angle-display').style.color = '#00ff00';
+        document.querySelector('.angle-display').style.borderColor = '#00ff00';
+        document.querySelector('.angle-display').style.boxShadow = '0 0 30px #00ff00';
         
-        // TRIGGER REACTION AT 45 DEGREES!
-        if(!reactionStarted && !reactionComplete) {
-            startReaction();
+        if(!hasTriggered && !reactionStarted && !reactionComplete) {
+            triggerReaction();
         }
     } else {
-        document.querySelector('.angle-indicator').style.color = 'white';
-        document.querySelector('.angle-indicator').style.borderColor = 'white';
+        document.querySelector('.angle-display').style.color = 'white';
+        document.querySelector('.angle-display').style.borderColor = 'white';
+        document.querySelector('.angle-display').style.boxShadow = 'none';
     }
     
-    document.getElementById('status').textContent = `📐 Angle: ${Math.round(tiltAngle)}° - Need ${TRIGGER_ANGLE}°`;
-    
-    // Show progress to 45
-    const percentTo45 = Math.min(100, (tiltAngle / TRIGGER_ANGLE) * 100);
-    document.querySelector('.progress-fill').style.width = percentTo45 + '%';
-} 
-else {
+    document.getElementById('status').textContent = `📐 ${Math.round(tiltAngle)}° / 45° - ${Math.round((tiltAngle/45)*100)}% to target`;
+} else {
     tiltAngle = 0;
     tubeAElement.setAttribute('rotation', `0 0 0`);
-    isTilted = false;
-    document.querySelector('.angle-indicator').style.display = 'none';
+    document.querySelector('.angle-display').innerHTML = '0°';
     document.querySelector('.progress-fill').style.width = '0%';
 }
 
@@ -304,50 +343,55 @@ updatePositionInfo();
 scene.addEventListener('touchend',function(e){
 if(!isDragging) return;
 isDragging=false;
-tubeAElement.setAttribute('rotation', `0 0 0`);
-isTilted = false;
-tiltAngle = 0;
-document.querySelector('.angle-indicator').style.display = 'none';
-document.querySelector('.progress-fill').style.width = '0%';
-if(!reactionComplete) {
-    document.getElementById('status').textContent = "✅ Ready - Drag DOWN to reach 45°";
+if(!reactionStarted && !reactionComplete) {
+    tubeAElement.setAttribute('rotation', `0 0 0`);
+    tiltAngle = 0;
+    document.querySelector('.angle-display').innerHTML = '0°';
+    document.querySelector('.progress-fill').style.width = '0%';
+    document.getElementById('status').textContent = "🎯 Ready - Drag DOWN to 45°";
 }
 });
 
 scene.addEventListener('click',function(e){ e.preventDefault(); return false; });
 });
 
-// REACTION TRIGGERED AT 45 DEGREES!
-function startReaction() {
-    if(reactionStarted || reactionComplete) return;
-    
+function triggerReaction() {
+    hasTriggered = true;
     reactionStarted = true;
-    console.log("🎯 45° REACHED! REACTION STARTED!");
     
-    document.getElementById('status').textContent = "⚡ 45° TRIGGERED! CHEMICAL REACTION! ⚡";
+    console.log("🎯 45° REACHED! REACTION TRIGGERED!");
+    
+    // Flash effect
+    document.querySelector('.reaction-flash').style.opacity = '1';
+    setTimeout(() => {
+        document.querySelector('.reaction-flash').style.opacity = '0';
+    }, 500);
+    
+    // Update displays
+    document.getElementById('status').textContent = "⚡ 45° REACHED! REACTION STARTED! ⚡";
     document.getElementById('status').style.color = "#00ff00";
-    updateInstruction("✅ REACTION ACTIVATED! Watch the magic happen! ✅");
+    updateInstruction("✅ CHEMICAL REACTION IN PROGRESS... ✅");
     
-    // Flash the screen
-    for(let i=0; i<3; i++) {
+    // Make angle display flash
+    for(let i=0; i<5; i++) {
         setTimeout(() => {
-            document.body.style.backgroundColor = 'rgba(0,255,0,0.2)';
-        }, i*200);
+            document.querySelector('.angle-display').style.transform = 'scale(1.2)';
+        }, i*150);
         setTimeout(() => {
-            document.body.style.backgroundColor = '';
-        }, i*200+100);
+            document.querySelector('.angle-display').style.transform = 'scale(1)';
+        }, i*150+75);
     }
     
-    // Start pouring animation automatically
+    // Start pouring animation
     startPouringAnimation();
 }
 
 function startPouringAnimation() {
-    if(reactionComplete) return;
-    
     let pourCount = 0;
+    const totalSteps = 40;
+    
     const pourInterval = setInterval(() => {
-        if(pourCount >= 35 || reactionComplete) { // 35 steps = full pour
+        if(pourCount >= totalSteps || reactionComplete) {
             clearInterval(pourInterval);
             if(!reactionComplete) {
                 completeReaction();
@@ -356,65 +400,79 @@ function startPouringAnimation() {
         }
         
         // Transfer liquid
-        liquidLevelA = Math.max(0.08, liquidLevelA - 0.01);
-        liquidLevelB = Math.min(0.62, liquidLevelB + 0.01);
-        pouredAmount += 0.01;
+        liquidLevelA = Math.max(0.08, liquidLevelA - 0.009);
+        liquidLevelB = Math.min(0.62, liquidLevelB + 0.009);
+        pouredAmount += 0.009;
         
         updateLiquidLevels();
         
-        // Create droplets
-        for(let i=0; i<5; i++) {
-            setTimeout(() => createDroplet(), i*20);
+        // Create droplet cascade
+        for(let i=0; i<6; i++) {
+            setTimeout(() => createDroplet(), i*30);
         }
         
-        // Update colors gradually
+        // Update colors
         const mixPercent = pouredAmount / 0.35;
         mixLiquids(Math.min(1, mixPercent));
         
-        updateProgressBar();
+        // Update progress
+        const pourProgress = (pourCount / totalSteps) * 100;
+        document.querySelector('.progress-fill').style.width = (50 + pourProgress/2) + '%';
+        
         pourCount++;
-    }, 50);
+    }, 40);
 }
 
 function createDroplet() {
     if(!tubeAElement || !tubeBElement) return;
     
-    for(let i=0; i<3; i++) {
-        const drop = document.createElement('a-sphere');
-        const size = 0.015;
-        drop.setAttribute('radius', size);
-        drop.setAttribute('color', '#3399ff');
-        drop.setAttribute('opacity', '0.9');
-        
-        // Calculate pour position
-        const tiltRad = 45 * Math.PI / 180; // Fixed at 45°
-        
-        const startX = tubeAElement.object3D.position.x + (Math.random() - 0.5) * 0.1;
-        const startY = tubeAElement.object3D.position.y + 0.25 - Math.sin(tiltRad) * 0.3;
-        const startZ = tubeAElement.object3D.position.z + Math.cos(tiltRad) * 0.3;
-        
-        drop.setAttribute('position', {x: startX, y: startY, z: startZ});
-        
-        // Target
-        const targetX = tubeBElement.object3D.position.x + (Math.random() - 0.5) * 0.1;
-        const targetY = tubeBElement.object3D.position.y + 0.4;
-        const targetZ = tubeBElement.object3D.position.z + (Math.random() - 0.5) * 0.1;
-        
-        drop.setAttribute('animation', {
-            property: 'position',
-            to: `${targetX} ${targetY} ${targetZ}`,
-            dur: 400,
-            easing: 'easeInQuad'
-        });
-        
-        drop.setAttribute('animation__opacity', {
-            property: 'opacity',
-            to: '0',
-            dur: 400
-        });
-        
-        document.querySelector('a-scene').appendChild(drop);
-        setTimeout(() => drop.remove(), 400);
+    const dropCount = 4;
+    for(let i=0; i<dropCount; i++) {
+        setTimeout(() => {
+            const drop = document.createElement('a-sphere');
+            drop.setAttribute('radius', 0.012 + Math.random()*0.01);
+            drop.setAttribute('color', '#3399ff');
+            drop.setAttribute('opacity', 0.9);
+            drop.setAttribute('metalness', 0.4);
+            drop.setAttribute('roughness', 0.1);
+            
+            // Calculate pour position with physics
+            const tiltRad = 45 * Math.PI / 180;
+            
+            const startX = tubeAElement.object3D.position.x + (Math.random() - 0.5) * 0.15;
+            const startY = tubeAElement.object3D.position.y + 0.3 - Math.sin(tiltRad) * 0.35;
+            const startZ = tubeAElement.object3D.position.z + Math.cos(tiltRad) * 0.35;
+            
+            drop.setAttribute('position', {x: startX, y: startY, z: startZ});
+            
+            // Target with variation
+            const targetX = tubeBElement.object3D.position.x + (Math.random() - 0.5) * 0.15;
+            const targetY = tubeBElement.object3D.position.y + 0.4 + Math.random() * 0.1;
+            const targetZ = tubeBElement.object3D.position.z + (Math.random() - 0.5) * 0.15;
+            
+            drop.setAttribute('animation', {
+                property: 'position',
+                to: `${targetX} ${targetY} ${targetZ}`,
+                dur: 500 + Math.random()*200,
+                easing: 'easeInQuad'
+            });
+            
+            drop.setAttribute('animation__opacity', {
+                property: 'opacity',
+                to: '0',
+                dur: 500
+            });
+            
+            drop.setAttribute('animation__scale', {
+                property: 'scale',
+                from: '1 1 1',
+                to: '0.3 0.3 0.3',
+                dur: 500
+            });
+            
+            document.querySelector('a-scene').appendChild(drop);
+            setTimeout(() => drop.remove(), 600);
+        }, i * 40);
     }
 }
 
@@ -448,6 +506,7 @@ function mixLiquids(amount) {
         document.querySelector('#liquidB')?.setAttribute('color', GREEN_COLOR);
         document.querySelector('#surfaceB')?.setAttribute('color', GREEN_COLOR);
     } else {
+        // Smooth color transition
         const r = Math.round(0 + 200 * amount);
         const g = Math.round(100 + 155 * amount);
         const b = Math.round(100 + 100 * amount);
@@ -459,11 +518,6 @@ function mixLiquids(amount) {
     }
 }
 
-function updateProgressBar() {
-    const percent = Math.min(100, (pouredAmount / 0.35) * 100);
-    document.querySelector('.progress-fill').style.width = percent + '%';
-}
-
 function updatePositionInfo() {
     if(tubeAElement && tubeBElement) {
         const posA = tubeAElement.object3D.position;
@@ -472,12 +526,12 @@ function updatePositionInfo() {
         
         document.getElementById('position-info').innerHTML = 
             '<strong style="color:#88ccff;">🔵 BLUE TUBE</strong><br>' +
-            'Current Tilt: ' + Math.round(tiltAngle) + '°<br>' +
+            'Current: ' + Math.round(tiltAngle) + '°<br>' +
             'Target: 45°<br>' +
             'Progress: ' + Math.min(100, Math.round((tiltAngle/45)*100)) + '%<br>' +
-            'Blue Liquid: ' + Math.round((liquidLevelA/0.45)*100) + '%<br>' +
+            'Blue: ' + Math.round((liquidLevelA/0.45)*100) + '%<br>' +
             '<strong style="color:#ffcc00;">🟡 YELLOW TUBE</strong><br>' +
-            'Yellow Liquid: ' + Math.round((liquidLevelB/0.45)*100) + '%<br>' +
+            'Yellow: ' + Math.round((liquidLevelB/0.45)*100) + '%<br>' +
             '<strong>📏 Distance: ' + distance.toFixed(2) + '</strong>';
     }
 }
@@ -488,10 +542,13 @@ function updateInstruction(msg) {
 }
 
 function updateStatus() {
-    if(tubeAVisible && tubeBVisible) {
-        document.getElementById('status').textContent = "✅ READY! Tilt to 45° to start reaction";
+    if(tubeAVisible && tubeBVisible && !reactionComplete) {
+        document.getElementById('status').textContent = "🎯 READY! Drag DOWN to 45°";
+        document.getElementById('status').style.color = "#00ff00";
+    } else if(reactionComplete) {
+        document.getElementById('status').textContent = "🧪 REACTION COMPLETE!";
     } else {
-        document.getElementById('status').textContent = "⏳ Scan both markers to begin";
+        document.getElementById('status').textContent = "⏳ Scan both markers";
     }
 }
 
@@ -499,34 +556,43 @@ function completeReaction() {
     reactionComplete = true;
     reactionStarted = false;
     mixLiquids(1.0);
-    document.getElementById('status').textContent = "🧪 REACTION COMPLETE! Beautiful green solution!";
+    
+    document.getElementById('status').textContent = "🧪 REACTION COMPLETE! 🧪";
+    document.getElementById('status').style.color = "#00ff00";
     updateInstruction("✅ EXPERIMENT SUCCESSFUL! Press Reset to try again ✅");
     
+    document.querySelector('.progress-fill').style.width = '100%';
+    document.querySelector('.angle-display').innerHTML = '45°';
+    document.querySelector('.angle-display').style.color = '#00ff00';
+    
     // Celebration
-    for(let i = 0; i < 20; i++) {
+    for(let i = 0; i < 30; i++) {
         setTimeout(() => {
             if(tubeBElement) {
                 const pos = tubeBElement.object3D.position;
-                const bubble = document.createElement('a-sphere');
-                bubble.setAttribute('radius', 0.02);
-                bubble.setAttribute('color', GREEN_COLOR);
-                bubble.setAttribute('position', {
-                    x: pos.x + (Math.random()-0.5)*0.2,
-                    y: pos.y + 0.2,
-                    z: pos.z + (Math.random()-0.5)*0.2
-                });
-                bubble.setAttribute('animation', {
-                    property: 'position',
-                    to: `${pos.x + (Math.random()-0.5)*0.3} ${pos.y + 0.8} ${pos.z + (Math.random()-0.5)*0.3}`,
-                    dur: 1200
-                });
-                bubble.setAttribute('animation__opacity', {
-                    property: 'opacity',
-                    to: '0',
-                    dur: 1200
-                });
-                document.querySelector('a-scene').appendChild(bubble);
-                setTimeout(() => bubble.remove(), 1200);
+                for(let j=0; j<3; j++) {
+                    const bubble = document.createElement('a-sphere');
+                    bubble.setAttribute('radius', 0.015 + Math.random()*0.015);
+                    bubble.setAttribute('color', GREEN_COLOR);
+                    bubble.setAttribute('emissive', GREEN_COLOR);
+                    bubble.setAttribute('position', {
+                        x: pos.x + (Math.random()-0.5)*0.3,
+                        y: pos.y + 0.2 + Math.random()*0.2,
+                        z: pos.z + (Math.random()-0.5)*0.3
+                    });
+                    bubble.setAttribute('animation', {
+                        property: 'position',
+                        to: `${pos.x + (Math.random()-0.5)*0.4} ${pos.y + 1.0} ${pos.z + (Math.random()-0.5)*0.4}`,
+                        dur: 1500
+                    });
+                    bubble.setAttribute('animation__opacity', {
+                        property: 'opacity',
+                        to: '0',
+                        dur: 1500
+                    });
+                    document.querySelector('a-scene').appendChild(bubble);
+                    setTimeout(() => bubble.remove(), 1500);
+                }
             }
         }, i * 100);
     }
@@ -535,12 +601,12 @@ function completeReaction() {
 function resetExperiment() {
     reactionStarted = false;
     reactionComplete = false;
+    hasTriggered = false;
     isDragging = false;
     tiltAngle = 0;
     pouredAmount = 0;
     liquidLevelA = 0.45;
     liquidLevelB = 0.45;
-    isTilted = false;
     
     if(tubeAElement) {
         tubeAElement.object3D.position.set(0, 0, 0);
@@ -549,32 +615,41 @@ function resetExperiment() {
     
     updateLiquidLevels();
     mixLiquids(0);
+    
     document.getElementById('status').textContent = "Scan both markers";
+    document.getElementById('status').style.color = "white";
     updateStatus();
     updatePositionInfo();
     updateInstruction("📷 Point camera at both test tube markers");
+    
     document.querySelector('.progress-fill').style.width = '0%';
-    document.querySelector('.angle-indicator').style.display = 'none';
+    document.querySelector('.angle-display').innerHTML = '0°';
+    document.querySelector('.angle-display').style.color = 'white';
+    document.querySelector('.angle-display').style.borderColor = 'white';
+    document.querySelector('.angle-display').style.boxShadow = 'none';
+    document.querySelector('.reaction-flash').style.opacity = '0';
 }
 </script>
 </head>
 
 <body>
 
+<div class="reaction-flash"></div>
+
 <div id="hud">
-<h3 style="margin:0 0 10px 0;">🧪 45° Trigger Reaction</h3>
+<h3 style="margin:0 0 10px 0;">🧪 Precision 45° Trigger</h3>
 <p id="status" style="font-weight:bold; margin:5px 0;">Scan both markers</p>
 <button onclick="resetExperiment()">🔄 Reset Experiment</button>
 </div>
 
 <div class="position-info" id="position-info">
 <strong style="color:#88ccff;">🔵 BLUE TUBE</strong><br>
-Current Tilt: 0°<br>
+Current: 0°<br>
 Target: 45°<br>
 Progress: 0%<br>
-Blue Liquid: 100%<br>
+Blue: 100%<br>
 <strong style="color:#ffcc00;">🟡 YELLOW TUBE</strong><br>
-Yellow Liquid: 100%<br>
+Yellow: 100%<br>
 <strong>📏 Distance: --</strong>
 </div>
 
@@ -582,7 +657,12 @@ Yellow Liquid: 100%<br>
 <div class="progress-fill"></div>
 </div>
 
-<div class="angle-indicator" style="display:none;">0°</div>
+<div class="target-45">🎯 TARGET: 45°</div>
+
+<div class="angle-container">
+<div class="angle-display">0°</div>
+<div class="angle-label">CURRENT ANGLE</div>
+</div>
 
 <div class="instruction">
 📷 Point camera at both test tube markers
