@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+7<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Chemical Mixing - Stable Tracking</title>
+<title>AR Chemical Mixing - Camera View</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-<!-- Use 8th Wall for better tracking (optional - needs key) OR use location-based -->
+<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
 <style>
 body{margin:0;overflow:hidden;font-family:Arial;}
@@ -18,6 +18,7 @@ color:white;
 padding:15px;
 border-radius:10px;
 z-index:1000;
+border-left:5px solid #00ccff;
 }
 button{
 background:#4CAF50;
@@ -28,6 +29,7 @@ border-radius:5px;
 cursor:pointer;
 margin:5px;
 font-weight:bold;
+font-size:16px;
 }
 .controls{
 position:absolute;
@@ -46,308 +48,44 @@ transform:translateX(-50%);
 font-size:72px;
 font-weight:bold;
 color:white;
-text-shadow:0 0 20px rgba(0,255,0,0.5);
+text-shadow:0 0 20px rgba(0,255,0,0.8);
+background:rgba(0,0,0,0.5);
+padding:10px 40px;
+border-radius:60px;
+border:4px solid white;
 z-index:1000;
 }
-</style>
-
-<script>
-// Simple solution: Use screen dragging instead of marker movement
-let tubeAVisible=true; // Always visible
-let tubeBVisible=true;
-let isDragging=false;
-let reactionStarted=false;
-let tubeAElement=null;
-let tubeBElement=null;
-
-let dragStartY=0;
-let tubeStartRot={x:0,y:0,z:0};
-
-const BLUE_COLOR='#0066cc';
-const YELLOW_COLOR='#ffaa00';
-const GREEN_COLOR='#00cc66';
-
-let liquidLevelA=0.45;
-let liquidLevelB=0.45;
-let tiltAngle=0;
-let pouredAmount=0;
-const TRIGGER_ANGLE=45;
-let hasTriggered=false;
-
-document.addEventListener('DOMContentLoaded',function(){
-const scene=document.querySelector('a-scene');
-
-// Create tubes at fixed positions (no markers needed)
-setTimeout(() => {
-tubeAElement=document.querySelector('#tubeA');
-tubeBElement=document.querySelector('#tubeB');
-tubeAElement.object3D.position.set(-1,0,0);
-tubeBElement.object3D.position.set(1,0,0);
-document.getElementById('status').textContent="✅ READY! Drag UP on BLUE tube to pour";
-}, 1000);
-
-// MOUSE DRAG for tilting
-scene.addEventListener('mousedown',function(e){
-if(reactionStarted) return;
-e.preventDefault();
-dragStartY=e.clientY;
-const rot=tubeAElement.object3D.rotation;
-tubeStartRot={x:rot.x, y:rot.y, z:rot.z};
-isDragging=true;
-});
-
-scene.addEventListener('mousemove',function(e){
-if(!isDragging || reactionStarted) return;
-e.preventDefault();
-
-const deltaY = e.clientY - dragStartY;
-if(deltaY < -10) { // Dragging UP
-    tiltAngle = Math.min(90, Math.abs(deltaY) * 0.3);
-    tubeAElement.setAttribute('rotation', `-${tiltAngle} 0 0`);
-    
-    document.querySelector('.angle-display').innerHTML = `${Math.round(tiltAngle)}°`;
-    
-    if(tiltAngle >= TRIGGER_ANGLE && !hasTriggered) {
-        startReaction();
-    }
-} else {
-    tubeAElement.setAttribute('rotation', `0 0 0`);
-    tiltAngle=0;
-    document.querySelector('.angle-display').innerHTML = '0°';
-}
-});
-
-scene.addEventListener('mouseup',function(){
-isDragging=false;
-});
-
-// TOUCH DRAG for mobile
-scene.addEventListener('touchstart',function(e){
-if(reactionStarted) return;
-e.preventDefault();
-const touch=e.touches[0];
-dragStartY=touch.clientY;
-isDragging=true;
-});
-
-scene.addEventListener('touchmove',function(e){
-if(!isDragging || reactionStarted) return;
-e.preventDefault();
-const touch=e.touches[0];
-
-const deltaY = touch.clientY - dragStartY;
-if(deltaY < -10) {
-    tiltAngle = Math.min(90, Math.abs(deltaY) * 0.3);
-    tubeAElement.setAttribute('rotation', `-${tiltAngle} 0 0`);
-    
-    document.querySelector('.angle-display').innerHTML = `${Math.round(tiltAngle)}°`;
-    
-    if(tiltAngle >= TRIGGER_ANGLE && !hasTriggered) {
-        startReaction();
-    }
-} else {
-    tubeAElement.setAttribute('rotation', `0 0 0`);
-    tiltAngle=0;
-    document.querySelector('.angle-display').innerHTML = '0°';
-}
-});
-
-scene.addEventListener('touchend',function(){
-isDragging=false;
-});
-});
-
-function startReaction() {
-    hasTriggered=true;
-    reactionStarted=true;
-    document.getElementById('status').textContent = "⚡ REACTION STARTED! ⚡";
-    startPouring();
-}
-
-function startPouring() {
-    let count=0;
-    const interval=setInterval(() => {
-        if(count>=35) {
-            clearInterval(interval);
-            completeReaction();
-            return;
-        }
-        liquidLevelA = Math.max(0.1, liquidLevelA - 0.01);
-        liquidLevelB = Math.min(0.6, liquidLevelB + 0.01);
-        pouredAmount += 0.01;
-        updateLiquidLevels();
-        createDroplet();
-        
-        // Mix colors
-        const mix = pouredAmount / 0.35;
-        if(mix>0) mixLiquids(Math.min(1,mix));
-        
-        count++;
-    }, 50);
-}
-
-function createDroplet() {
-    if(!tubeAElement || !tubeBElement) return;
-    const drop=document.createElement('a-sphere');
-    drop.setAttribute('radius','0.015');
-    drop.setAttribute('color',BLUE_COLOR);
-    drop.setAttribute('position',{
-        x: tubeAElement.object3D.position.x,
-        y: tubeAElement.object3D.position.y + 0.3,
-        z: tubeAElement.object3D.position.z
-    });
-    drop.setAttribute('animation',{
-        property:'position',
-        to:`${tubeBElement.object3D.position.x} ${tubeBElement.object3D.position.y+0.4} ${tubeBElement.object3D.position.z}`,
-        dur:500
-    });
-    drop.setAttribute('animation__opacity',{
-        property:'opacity',
-        to:'0',
-        dur:500
-    });
-    document.querySelector('a-scene').appendChild(drop);
-    setTimeout(()=>drop.remove(),500);
-}
-
-function updateLiquidLevels() {
-    const liquidA=document.querySelector('#liquidA');
-    const liquidB=document.querySelector('#liquidB');
-    if(liquidA) {
-        liquidA.setAttribute('height', liquidLevelA);
-        liquidA.setAttribute('position', `0 ${0.15+liquidLevelA/2} 0`);
-    }
-    if(liquidB) {
-        liquidB.setAttribute('height', liquidLevelB);
-        liquidB.setAttribute('position', `0 ${0.15+liquidLevelB/2} 0`);
-    }
-}
-
-function mixLiquids(amount) {
-    const mixedColor=`rgb(${Math.round(0+200*amount)}, ${Math.round(100+155*amount)}, ${Math.round(100+100*amount)})`;
-    document.querySelector('#liquidA')?.setAttribute('color',mixedColor);
-    document.querySelector('#liquidB')?.setAttribute('color',mixedColor);
-}
-
-function completeReaction() {
-    document.getElementById('status').textContent = "🧪 REACTION COMPLETE!";
-    document.querySelector('.angle-display').innerHTML = "✅";
-}
-
-function resetExperiment() {
-    reactionStarted=false;
-    hasTriggered=false;
-    tiltAngle=0;
-    pouredAmount=0;
-    liquidLevelA=0.45;
-    liquidLevelB=0.45;
-    updateLiquidLevels();
-    mixLiquids(0);
-    document.getElementById('status').textContent = "READY! Drag UP on BLUE tube";
-    document.querySelector('.angle-display').innerHTML = '0°';
-    if(tubeAElement) tubeAElement.setAttribute('rotation','0 0 0');
-}
-</script>
-</head>
-
-<body>
-
-<div id="hud">
-<h2>🧪 Simple AR Pouring</h2>
-<div id="status">Loading...</div>
-<button onclick="resetExperiment()">🔄 Reset</button>
-</div>
-
-<div class="angle-display">0°</div>
-
-<div class="controls">
-<button style="background:#0066cc;" onclick="if(!reactionStarted)document.querySelector('#tubeA').setAttribute('rotation','-45 0 0');startReaction()">
-    💧 TEST POUR
-</button>
-</div>
-
-<a-scene embedded>
-
-<a-light type="ambient" intensity="0.8"></a-light>
-<a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
-
-<!-- Blue tube (fixed position) -->
-<a-entity id="tubeA" position="-1 0 -2">
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#ffffff" opacity="0.6" transparent="true"></a-cylinder>
-<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0066cc" opacity="0.95"></a-cylinder>
-<a-circle radius="0.13" position="0 0.45 0" color="#0066cc" rotation="-90 0 0"></a-circle>
-<a-text value="BLUE" position="0 0.7 0" color="#0066cc"></a-text>
-</a-entity>
-
-<!-- Yellow tube (fixed position) -->
-<a-entity id="tubeB" position="1 0 -2">
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#ffffff" opacity="0.6" transparent="true"></a-cylinder>
-<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffaa00" opacity="0.95"></a-cylinder>
-<a-circle radius="0.13" position="0 0.45 0" color="#ffaa00" rotation="-90 0 0"></a-circle>
-<a-text value="YELLOW" position="0 0.7 0" color="#ffaa00"></a-text>
-</a-entity>
-
-<a-entity camera position="0 1.6 0"></a-entity>
-
-</a-scene>
-
-</body>
-</html><!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>AR Chemical Mixing - Stable Tracking</title>
-
-<script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-<!-- Use 8th Wall for better tracking (optional - needs key) OR use location-based -->
-
-<style>
-body{margin:0;overflow:hidden;font-family:Arial;}
-#hud{
+.status{
 position:absolute;
-top:10px;
-left:10px;
-background:rgba(0,0,0,0.8);
-color:white;
-padding:15px;
-border-radius:10px;
-z-index:1000;
-}
-button{
-background:#4CAF50;
-color:white;
-border:none;
+top:20px;
+right:20px;
+background:rgba(0,0,0,0.7);
+color:#ffaa00;
 padding:10px 20px;
-border-radius:5px;
-cursor:pointer;
-margin:5px;
+border-radius:30px;
 font-weight:bold;
-}
-.controls{
-position:absolute;
-bottom:100px;
-left:50%;
-transform:translateX(-50%);
-display:flex;
-gap:10px;
 z-index:1000;
+border-right:5px solid #ffaa00;
 }
-.angle-display{
+.instruction{
 position:absolute;
-top:30%;
+bottom:180px;
 left:50%;
 transform:translateX(-50%);
-font-size:72px;
-font-weight:bold;
+background:rgba(0,100,200,0.9);
 color:white;
-text-shadow:0 0 20px rgba(0,255,0,0.5);
+padding:15px 30px;
+border-radius:50px;
+font-size:18px;
+font-weight:bold;
 z-index:1000;
+border:2px solid white;
+white-space:nowrap;
 }
 </style>
 
 <script>
-// Simple solution: Use screen dragging instead of marker movement
-let tubeAVisible=true; // Always visible
+let tubeAVisible=true;
 let tubeBVisible=true;
 let isDragging=false;
 let reactionStarted=false;
@@ -355,7 +93,7 @@ let tubeAElement=null;
 let tubeBElement=null;
 
 let dragStartY=0;
-let tubeStartRot={x:0,y:0,z:0};
+let currentTilt=0;
 
 const BLUE_COLOR='#0066cc';
 const YELLOW_COLOR='#ffaa00';
@@ -371,90 +109,127 @@ let hasTriggered=false;
 document.addEventListener('DOMContentLoaded',function(){
 const scene=document.querySelector('a-scene');
 
-// Create tubes at fixed positions (no markers needed)
+// Camera ready
+scene.addEventListener('loaded',function(){
+document.getElementById('cam-status').innerHTML = "✅ Camera ready";
+document.getElementById('status').innerHTML = "👆 Drag BLUE tube UP to pour";
+});
+
+// Get tube elements
 setTimeout(() => {
 tubeAElement=document.querySelector('#tubeA');
 tubeBElement=document.querySelector('#tubeB');
-tubeAElement.object3D.position.set(-1,0,0);
-tubeBElement.object3D.position.set(1,0,0);
-document.getElementById('status').textContent="✅ READY! Drag UP on BLUE tube to pour";
 }, 1000);
 
-// MOUSE DRAG for tilting
+// MOUSE EVENTS
 scene.addEventListener('mousedown',function(e){
 if(reactionStarted) return;
 e.preventDefault();
 dragStartY=e.clientY;
-const rot=tubeAElement.object3D.rotation;
-tubeStartRot={x:rot.x, y:rot.y, z:rot.z};
 isDragging=true;
+document.getElementById('status').innerHTML = "⬆️ Drag UP to increase tilt";
 });
 
 scene.addEventListener('mousemove',function(e){
-if(!isDragging || reactionStarted) return;
+if(!isDragging || reactionStarted || !tubeAElement) return;
 e.preventDefault();
 
 const deltaY = e.clientY - dragStartY;
 if(deltaY < -10) { // Dragging UP
-    tiltAngle = Math.min(90, Math.abs(deltaY) * 0.3);
+    tiltAngle = Math.min(90, Math.abs(deltaY) * 0.4);
     tubeAElement.setAttribute('rotation', `-${tiltAngle} 0 0`);
-    
     document.querySelector('.angle-display').innerHTML = `${Math.round(tiltAngle)}°`;
     
-    if(tiltAngle >= TRIGGER_ANGLE && !hasTriggered) {
-        startReaction();
+    // Change color as we approach 45°
+    if(tiltAngle >= TRIGGER_ANGLE) {
+        document.querySelector('.angle-display').style.color = '#00ff00';
+        document.querySelector('.angle-display').style.borderColor = '#00ff00';
+        
+        if(!hasTriggered) {
+            startReaction();
+        }
+    } else {
+        document.querySelector('.angle-display').style.color = 'white';
+        document.querySelector('.angle-display').style.borderColor = 'white';
     }
+    
+    document.getElementById('status').innerHTML = `📐 ${Math.round(tiltAngle)}° / 45°`;
 } else {
-    tubeAElement.setAttribute('rotation', `0 0 0`);
+    tubeAElement.setAttribute('rotation', '0 0 0');
     tiltAngle=0;
     document.querySelector('.angle-display').innerHTML = '0°';
+    document.querySelector('.angle-display').style.color = 'white';
+    document.querySelector('.angle-display').style.borderColor = 'white';
 }
 });
 
 scene.addEventListener('mouseup',function(){
 isDragging=false;
+if(!reactionStarted) {
+    document.getElementById('status').innerHTML = "👆 Drag BLUE tube UP to 45°";
+}
 });
 
-// TOUCH DRAG for mobile
+// TOUCH EVENTS for mobile
 scene.addEventListener('touchstart',function(e){
 if(reactionStarted) return;
 e.preventDefault();
 const touch=e.touches[0];
 dragStartY=touch.clientY;
 isDragging=true;
+document.getElementById('status').innerHTML = "⬆️ Drag UP to increase tilt";
 });
 
 scene.addEventListener('touchmove',function(e){
-if(!isDragging || reactionStarted) return;
+if(!isDragging || reactionStarted || !tubeAElement) return;
 e.preventDefault();
 const touch=e.touches[0];
 
 const deltaY = touch.clientY - dragStartY;
 if(deltaY < -10) {
-    tiltAngle = Math.min(90, Math.abs(deltaY) * 0.3);
+    tiltAngle = Math.min(90, Math.abs(deltaY) * 0.4);
     tubeAElement.setAttribute('rotation', `-${tiltAngle} 0 0`);
-    
     document.querySelector('.angle-display').innerHTML = `${Math.round(tiltAngle)}°`;
     
-    if(tiltAngle >= TRIGGER_ANGLE && !hasTriggered) {
-        startReaction();
+    if(tiltAngle >= TRIGGER_ANGLE) {
+        document.querySelector('.angle-display').style.color = '#00ff00';
+        document.querySelector('.angle-display').style.borderColor = '#00ff00';
+        
+        if(!hasTriggered) {
+            startReaction();
+        }
+    } else {
+        document.querySelector('.angle-display').style.color = 'white';
+        document.querySelector('.angle-display').style.borderColor = 'white';
     }
+    
+    document.getElementById('status').innerHTML = `📐 ${Math.round(tiltAngle)}° / 45°`;
 } else {
-    tubeAElement.setAttribute('rotation', `0 0 0`);
+    tubeAElement.setAttribute('rotation', '0 0 0');
     tiltAngle=0;
     document.querySelector('.angle-display').innerHTML = '0°';
+    document.querySelector('.angle-display').style.color = 'white';
+    document.querySelector('.angle-display').style.borderColor = 'white';
 }
 });
 
 scene.addEventListener('touchend',function(){
 isDragging=false;
+if(!reactionStarted) {
+    document.getElementById('status').innerHTML = "👆 Drag BLUE tube UP to 45°";
+}
 });
+
+// Prevent default
+scene.addEventListener('click',function(e){ e.preventDefault(); });
 });
 
 function startReaction() {
     hasTriggered=true;
     reactionStarted=true;
-    document.getElementById('status').textContent = "⚡ REACTION STARTED! ⚡";
+    document.getElementById('status').innerHTML = "⚡ 45° REACHED! REACTION STARTED! ⚡";
+    document.getElementById('status').style.color = "#00ff00";
+    document.querySelector('.instruction').innerHTML = "✅ POURING LIQUID... ✅";
     startPouring();
 }
 
@@ -466,80 +241,139 @@ function startPouring() {
             completeReaction();
             return;
         }
+        
+        // Transfer liquid
         liquidLevelA = Math.max(0.1, liquidLevelA - 0.01);
         liquidLevelB = Math.min(0.6, liquidLevelB + 0.01);
         pouredAmount += 0.01;
+        
         updateLiquidLevels();
         createDroplet();
         
         // Mix colors
-        const mix = pouredAmount / 0.35;
-        if(mix>0) mixLiquids(Math.min(1,mix));
+        const mixPercent = pouredAmount / 0.35;
+        if(mixPercent > 0) {
+            mixLiquids(Math.min(1, mixPercent));
+        }
         
         count++;
-    }, 50);
+    }, 40);
 }
 
 function createDroplet() {
     if(!tubeAElement || !tubeBElement) return;
-    const drop=document.createElement('a-sphere');
-    drop.setAttribute('radius','0.015');
-    drop.setAttribute('color',BLUE_COLOR);
-    drop.setAttribute('position',{
-        x: tubeAElement.object3D.position.x,
-        y: tubeAElement.object3D.position.y + 0.3,
-        z: tubeAElement.object3D.position.z
-    });
-    drop.setAttribute('animation',{
-        property:'position',
-        to:`${tubeBElement.object3D.position.x} ${tubeBElement.object3D.position.y+0.4} ${tubeBElement.object3D.position.z}`,
-        dur:500
-    });
-    drop.setAttribute('animation__opacity',{
-        property:'opacity',
-        to:'0',
-        dur:500
-    });
-    document.querySelector('a-scene').appendChild(drop);
-    setTimeout(()=>drop.remove(),500);
+    
+    for(let i=0; i<2; i++) {
+        setTimeout(() => {
+            const drop = document.createElement('a-sphere');
+            drop.setAttribute('radius', '0.015');
+            drop.setAttribute('color', BLUE_COLOR);
+            drop.setAttribute('opacity', '0.9');
+            
+            // Start from blue tube
+            const startX = tubeAElement.object3D.position.x;
+            const startY = tubeAElement.object3D.position.y + 0.3;
+            const startZ = tubeAElement.object3D.position.z;
+            
+            drop.setAttribute('position', {x: startX, y: startY, z: startZ});
+            
+            // End at yellow tube
+            const endX = tubeBElement.object3D.position.x;
+            const endY = tubeBElement.object3D.position.y + 0.4;
+            const endZ = tubeBElement.object3D.position.z;
+            
+            drop.setAttribute('animation', {
+                property: 'position',
+                to: `${endX} ${endY} ${endZ}`,
+                dur: 500,
+                easing: 'easeInQuad'
+            });
+            
+            drop.setAttribute('animation__opacity', {
+                property: 'opacity',
+                to: '0',
+                dur: 500
+            });
+            
+            document.querySelector('a-scene').appendChild(drop);
+            setTimeout(() => drop.remove(), 500);
+        }, i * 50);
+    }
 }
 
 function updateLiquidLevels() {
-    const liquidA=document.querySelector('#liquidA');
-    const liquidB=document.querySelector('#liquidB');
+    const liquidA = document.querySelector('#liquidA');
+    const surfaceA = document.querySelector('#surfaceA');
+    const liquidB = document.querySelector('#liquidB');
+    const surfaceB = document.querySelector('#surfaceB');
+    
     if(liquidA) {
         liquidA.setAttribute('height', liquidLevelA);
-        liquidA.setAttribute('position', `0 ${0.15+liquidLevelA/2} 0`);
+        liquidA.setAttribute('position', `0 ${0.15 + liquidLevelA/2} 0`);
+    }
+    if(surfaceA) {
+        surfaceA.setAttribute('position', `0 ${0.15 + liquidLevelA} 0`);
     }
     if(liquidB) {
         liquidB.setAttribute('height', liquidLevelB);
-        liquidB.setAttribute('position', `0 ${0.15+liquidLevelB/2} 0`);
+        liquidB.setAttribute('position', `0 ${0.15 + liquidLevelB/2} 0`);
+    }
+    if(surfaceB) {
+        surfaceB.setAttribute('position', `0 ${0.15 + liquidLevelB} 0`);
     }
 }
 
 function mixLiquids(amount) {
-    const mixedColor=`rgb(${Math.round(0+200*amount)}, ${Math.round(100+155*amount)}, ${Math.round(100+100*amount)})`;
-    document.querySelector('#liquidA')?.setAttribute('color',mixedColor);
-    document.querySelector('#liquidB')?.setAttribute('color',mixedColor);
+    if(amount <= 0) {
+        document.querySelector('#liquidA')?.setAttribute('color', BLUE_COLOR);
+        document.querySelector('#surfaceA')?.setAttribute('color', BLUE_COLOR);
+        document.querySelector('#liquidB')?.setAttribute('color', YELLOW_COLOR);
+        document.querySelector('#surfaceB')?.setAttribute('color', YELLOW_COLOR);
+    } else if(amount >= 1) {
+        document.querySelector('#liquidA')?.setAttribute('color', GREEN_COLOR);
+        document.querySelector('#surfaceA')?.setAttribute('color', GREEN_COLOR);
+        document.querySelector('#liquidB')?.setAttribute('color', GREEN_COLOR);
+        document.querySelector('#surfaceB')?.setAttribute('color', GREEN_COLOR);
+    } else {
+        const r = Math.round(0 + 200 * amount);
+        const g = Math.round(100 + 155 * amount);
+        const b = Math.round(100 + 100 * amount);
+        const mixedColor = `rgb(${r}, ${g}, ${b})`;
+        document.querySelector('#liquidA')?.setAttribute('color', mixedColor);
+        document.querySelector('#surfaceA')?.setAttribute('color', mixedColor);
+        document.querySelector('#liquidB')?.setAttribute('color', mixedColor);
+        document.querySelector('#surfaceB')?.setAttribute('color', mixedColor);
+    }
 }
 
 function completeReaction() {
-    document.getElementById('status').textContent = "🧪 REACTION COMPLETE!";
+    document.getElementById('status').innerHTML = "🧪 REACTION COMPLETE!";
+    document.querySelector('.instruction').innerHTML = "✅ SUCCESS! Press Reset to try again ✅";
     document.querySelector('.angle-display').innerHTML = "✅";
 }
 
 function resetExperiment() {
-    reactionStarted=false;
-    hasTriggered=false;
-    tiltAngle=0;
-    pouredAmount=0;
-    liquidLevelA=0.45;
-    liquidLevelB=0.45;
+    reactionStarted = false;
+    hasTriggered = false;
+    isDragging = false;
+    tiltAngle = 0;
+    pouredAmount = 0;
+    liquidLevelA = 0.45;
+    liquidLevelB = 0.45;
+    
+    if(tubeAElement) {
+        tubeAElement.setAttribute('rotation', '0 0 0');
+    }
+    
     updateLiquidLevels();
     mixLiquids(0);
-    document.getElementById('status').textContent = "READY! Drag UP on BLUE tube";
+    
+    document.getElementById('status').innerHTML = "👆 Drag BLUE tube UP to 45°";
+    document.getElementById('status').style.color = "white";
+    document.querySelector('.instruction').innerHTML = "👆 DRAG BLUE TUBE UPWARD to 45° 👆";
     document.querySelector('.angle-display').innerHTML = '0°';
-    if(tubeAElement) tubeAElement.setAttribute('rotation','0 0 0');
+    document.querySelector('.angle-display').style.color = 'white';
+    document.querySelector('.angle-display').style.borderColor = 'white';
 }
 </script>
 </head>
@@ -547,41 +381,47 @@ function resetExperiment() {
 <body>
 
 <div id="hud">
-<h2>🧪 Simple AR Pouring</h2>
-<div id="status">Loading...</div>
-<button onclick="resetExperiment()">🔄 Reset</button>
+<h2>🧪 AR Chemical Mixing</h2>
+<div id="status">👆 Drag BLUE tube UP to pour</div>
+<button onclick="resetExperiment()">🔄 Reset Experiment</button>
+</div>
+
+<div class="status" id="cam-status">
+📷 Camera active
 </div>
 
 <div class="angle-display">0°</div>
 
-<div class="controls">
-<button style="background:#0066cc;" onclick="if(!reactionStarted)document.querySelector('#tubeA').setAttribute('rotation','-45 0 0');startReaction()">
-    💧 TEST POUR
-</button>
+<div class="instruction">
+👆 DRAG BLUE TUBE UPWARD to 45° 👆
 </div>
 
-<a-scene embedded>
+<a-scene embedded arjs="debugUIEnabled:false; trackingMethod:best;">
 
 <a-light type="ambient" intensity="0.8"></a-light>
 <a-light type="directional" position="1 2 1" intensity="0.6"></a-light>
 
-<!-- Blue tube (fixed position) -->
-<a-entity id="tubeA" position="-1 0 -2">
+<!-- Blue tube on HIRO marker -->
+<a-marker id="markerA" type="pattern" url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/aframe/examples/image-based/data/hiro.patt">
+<a-entity id="tubeA">
 <a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#ffffff" opacity="0.6" transparent="true"></a-cylinder>
 <a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0066cc" opacity="0.95"></a-cylinder>
-<a-circle radius="0.13" position="0 0.45 0" color="#0066cc" rotation="-90 0 0"></a-circle>
-<a-text value="BLUE" position="0 0.7 0" color="#0066cc"></a-text>
+<a-circle id="surfaceA" radius="0.13" position="0 0.45 0" color="#0066cc" rotation="-90 0 0"></a-circle>
+<a-text value="BLUE" position="0 0.7 0" color="#0066cc" align="center"></a-text>
 </a-entity>
+</a-marker>
 
-<!-- Yellow tube (fixed position) -->
-<a-entity id="tubeB" position="1 0 -2">
+<!-- Yellow tube on KANJI marker -->
+<a-marker id="markerB" type="pattern" url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/aframe/examples/image-based/data/kanji.patt">
+<a-entity id="tubeB">
 <a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#ffffff" opacity="0.6" transparent="true"></a-cylinder>
 <a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffaa00" opacity="0.95"></a-cylinder>
-<a-circle radius="0.13" position="0 0.45 0" color="#ffaa00" rotation="-90 0 0"></a-circle>
-<a-text value="YELLOW" position="0 0.7 0" color="#ffaa00"></a-text>
+<a-circle id="surfaceB" radius="0.13" position="0 0.45 0" color="#ffaa00" rotation="-90 0 0"></a-circle>
+<a-text value="YELLOW" position="0 0.7 0" color="#ffaa00" align="center"></a-text>
 </a-entity>
+</a-marker>
 
-<a-entity camera position="0 1.6 0"></a-entity>
+<a-entity camera></a-entity>
 
 </a-scene>
 
