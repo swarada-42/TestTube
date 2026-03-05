@@ -2,13 +2,17 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Chemical Mixing - Real Tilt Reaction</title>
+<title>AR Chemical Mixing</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
 <style>
-body{margin:0;overflow:hidden;font-family:Arial;}
+body{
+margin:0;
+overflow:hidden;
+font-family:Arial;
+}
 
 #hud{
 position:absolute;
@@ -19,196 +23,145 @@ color:white;
 padding:15px;
 border-radius:10px;
 z-index:1000;
-border-left:5px solid #00ccff;
 }
 
 button{
 background:#4CAF50;
 color:white;
 border:none;
-padding:8px 16px;
+padding:8px 15px;
 border-radius:5px;
-cursor:pointer;
 margin-top:5px;
-width:100%;
-font-weight:bold;
-}
-
-.position-info{
-position:absolute;
-top:10px;
-right:10px;
-background:rgba(0,0,0,0.7);
-color:white;
-padding:15px;
-border-radius:5px;
-font-size:14px;
-z-index:1000;
-min-width:220px;
-}
-
-.instruction{
-position:absolute;
-bottom:20px;
-left:50%;
-transform:translateX(-50%);
-background:rgba(0,100,200,0.9);
-color:white;
-padding:15px 30px;
-border-radius:50px;
-font-size:18px;
-font-weight:bold;
-z-index:1000;
+cursor:pointer;
 }
 
 .angle-display{
 position:absolute;
 top:50%;
 left:50%;
-transform:translate(-50%, -50%);
+transform:translate(-50%,-50%);
 font-size:60px;
 font-weight:bold;
 color:white;
 background:rgba(0,0,0,0.6);
 padding:10px 40px;
 border-radius:50px;
-z-index:1000;
 display:none;
 }
 </style>
 
 <script>
 
-let tubeAVisible=false;
-let tubeBVisible=false;
-let tubeAElement=null;
-let tubeBElement=null;
+let tubeAElement=null
+let tubeBElement=null
 
-let liquidLevelA=0.45;
-let liquidLevelB=0.45;
+let liquidLevelA=0.45
+let liquidLevelB=0.45
 
-let tiltAngle=0;
-let pouredAmount=0;
+let tiltAngle=0
+let pouredAmount=0
 
-const BLUE='#0066cc';
-const YELLOW='#ffaa00';
-const GREEN='#00cc66';
+const BLUE='#0066cc'
+const YELLOW='#ffaa00'
+const GREEN='#00cc66'
 
-document.addEventListener('DOMContentLoaded',function(){
 
-const scene=document.querySelector('a-scene');
+document.addEventListener("DOMContentLoaded",function(){
 
-scene.addEventListener('markerFound',function(e){
+tubeAElement=document.querySelector("#tubeA")
+tubeBElement=document.querySelector("#tubeB")
 
-if(e.target.id==='markerA'){
-tubeAVisible=true;
-tubeAElement=document.querySelector('#tubeA');
-document.getElementById('status').innerText="Blue tube detected";
-}
+})
 
-if(e.target.id==='markerB'){
-tubeBVisible=true;
-tubeBElement=document.querySelector('#tubeB');
-document.getElementById('status').innerText="Yellow tube detected";
-}
 
-if(tubeAVisible && tubeBVisible){
-document.getElementById('status').innerText="Tilt blue tube to pour";
-}
+AFRAME.registerComponent("pour-system",{
 
-});
+tick:function(){
 
-scene.addEventListener('markerLost',function(e){
+if(!tubeAElement || !tubeBElement) return
 
-if(e.target.id==='markerA'){
-tubeAVisible=false;
-document.getElementById('status').innerText="Show blue marker";
-}
+const markerA=document.querySelector("#markerA")
+const markerB=document.querySelector("#markerB")
 
-if(e.target.id==='markerB'){
-tubeBVisible=false;
-document.getElementById('status').innerText="Show yellow marker";
-}
+if(!markerA.object3D.visible || !markerB.object3D.visible) return
 
-});
 
-scene.addEventListener('markerPoseFound',function(e){
+const rot=markerA.object3D.rotation
 
-const marker=e.target;
+const rotX=rot.x*(180/Math.PI)
+const rotY=rot.y*(180/Math.PI)
+const rotZ=rot.z*(180/Math.PI)
 
-if(marker.id==="markerA" && marker.object3D && tubeAElement){
+tiltAngle=Math.max(0,rotX)
 
-const rot=marker.object3D.rotation;
+tubeAElement.setAttribute("rotation",
+`-${tiltAngle} ${rotY} ${rotZ}`)
 
-const rotX=rot.x*(180/Math.PI);
-const rotY=rot.y*(180/Math.PI);
-const rotZ=rot.z*(180/Math.PI);
+if(tiltAngle>5){
 
-if(rotX>5){
-
-tiltAngle=Math.min(90,rotX);
-
-tubeAElement.setAttribute("rotation",`-${tiltAngle} ${rotY} ${rotZ}`);
-
-document.querySelector(".angle-display").style.display="block";
-document.querySelector(".angle-display").innerText=Math.round(tiltAngle)+"°";
-
-pourLiquid();
+document.querySelector(".angle-display").style.display="block"
+document.querySelector(".angle-display").innerText=
+Math.round(tiltAngle)+"°"
 
 }else{
 
-tiltAngle=0;
-tubeAElement.setAttribute("rotation",`0 ${rotY} ${rotZ}`);
-document.querySelector(".angle-display").style.display="none";
+document.querySelector(".angle-display").style.display="none"
 
 }
 
-updatePositionInfo();
+
+const posA=tubeAElement.object3D.position
+const posB=tubeBElement.object3D.position
+
+const distance=posA.distanceTo(posB)
+
+
+if(distance<2 && tiltAngle>10){
+
+let speed=tiltAngle/4000
+
+liquidLevelA=Math.max(0.1,liquidLevelA-speed)
+liquidLevelB=Math.min(0.6,liquidLevelB+speed)
+
+pouredAmount+=speed
+
+updateLiquidLevels()
+
+if(Math.random()<0.25){
+createDroplet()
+}
+
+mixLiquids(Math.min(1,pouredAmount/0.35))
+
+document.getElementById("status").innerText=
+"Pouring... "+Math.round(tiltAngle)+"°"
 
 }
 
-if(marker.id==="markerB" && marker.object3D && tubeBElement){
+}
 
-const rot=marker.object3D.rotation;
-const rotY=rot.y*(180/Math.PI);
-const rotZ=rot.z*(180/Math.PI);
+})
 
-tubeBElement.setAttribute("rotation",`0 ${rotY} ${rotZ}`);
+
+function updateLiquidLevels(){
+
+const liquidA=document.querySelector("#liquidA")
+const liquidB=document.querySelector("#liquidB")
+
+if(liquidA){
+
+liquidA.setAttribute("height",liquidLevelA)
+liquidA.setAttribute("position",
+`0 ${0.15+liquidLevelA/2} 0`)
 
 }
 
-});
+if(liquidB){
 
-});
+liquidB.setAttribute("height",liquidLevelB)
+liquidB.setAttribute("position",
+`0 ${0.15+liquidLevelB/2} 0`)
 
-
-function pourLiquid(){
-
-if(!tubeAElement || !tubeBElement) return;
-
-const distance=tubeAElement.object3D.position.distanceTo(tubeBElement.object3D.position);
-
-if(distance>1) return;
-
-let speed=tiltAngle/5000;
-
-liquidLevelA=Math.max(0.1,liquidLevelA-speed);
-liquidLevelB=Math.min(0.6,liquidLevelB+speed);
-
-pouredAmount+=speed;
-
-updateLiquidLevels();
-
-if(Math.random()<0.3){
-createDroplet();
-}
-
-mixLiquids(Math.min(1,pouredAmount/0.35));
-
-document.getElementById("status").innerText="Pouring... "+Math.round(tiltAngle)+"°";
-
-if(pouredAmount>=0.35){
-completeReaction();
 }
 
 }
@@ -216,48 +169,30 @@ completeReaction();
 
 function createDroplet(){
 
-const drop=document.createElement("a-sphere");
+const drop=document.createElement("a-sphere")
 
-drop.setAttribute("radius","0.015");
-drop.setAttribute("color",BLUE);
+drop.setAttribute("radius","0.015")
+drop.setAttribute("color",BLUE)
 
-const startX=tubeAElement.object3D.position.x;
-const startY=tubeAElement.object3D.position.y+0.3;
-const startZ=tubeAElement.object3D.position.z;
+const startX=tubeAElement.object3D.position.x
+const startY=tubeAElement.object3D.position.y+0.3
+const startZ=tubeAElement.object3D.position.z
 
-drop.setAttribute("position",{x:startX,y:startY,z:startZ});
+drop.setAttribute("position",{x:startX,y:startY,z:startZ})
 
-const targetX=tubeBElement.object3D.position.x;
-const targetY=tubeBElement.object3D.position.y+0.4;
-const targetZ=tubeBElement.object3D.position.z;
+const targetX=tubeBElement.object3D.position.x
+const targetY=tubeBElement.object3D.position.y+0.4
+const targetZ=tubeBElement.object3D.position.z
 
 drop.setAttribute("animation",{
 property:"position",
 to:`${targetX} ${targetY} ${targetZ}`,
 dur:500
-});
+})
 
-document.querySelector("a-scene").appendChild(drop);
+document.querySelector("a-scene").appendChild(drop)
 
-setTimeout(()=>drop.remove(),500);
-
-}
-
-
-function updateLiquidLevels(){
-
-const liquidA=document.querySelector("#liquidA");
-const liquidB=document.querySelector("#liquidB");
-
-if(liquidA){
-liquidA.setAttribute("height",liquidLevelA);
-liquidA.setAttribute("position",`0 ${0.15+liquidLevelA/2} 0`);
-}
-
-if(liquidB){
-liquidB.setAttribute("height",liquidLevelB);
-liquidB.setAttribute("position",`0 ${0.15+liquidLevelB/2} 0`);
-}
+setTimeout(()=>drop.remove(),500)
 
 }
 
@@ -266,135 +201,135 @@ function mixLiquids(amount){
 
 if(amount<=0){
 
-document.querySelector("#liquidA")?.setAttribute("color",BLUE);
-document.querySelector("#liquidB")?.setAttribute("color",YELLOW);
-
-}else if(amount>=1){
-
-document.querySelector("#liquidA")?.setAttribute("color",GREEN);
-document.querySelector("#liquidB")?.setAttribute("color",GREEN);
-
-}else{
-
-const r=Math.round(0+200*amount);
-const g=Math.round(100+155*amount);
-const b=Math.round(100+100*amount);
-
-const color=`rgb(${r},${g},${b})`;
-
-document.querySelector("#liquidA")?.setAttribute("color",color);
-document.querySelector("#liquidB")?.setAttribute("color",color);
+document.querySelector("#liquidA").setAttribute("color",BLUE)
+document.querySelector("#liquidB").setAttribute("color",YELLOW)
 
 }
 
-}
+else if(amount>=1){
 
+document.querySelector("#liquidA").setAttribute("color",GREEN)
+document.querySelector("#liquidB").setAttribute("color",GREEN)
 
-function updatePositionInfo(){
-
-if(tubeAElement && tubeBElement){
-
-const posA=tubeAElement.object3D.position;
-const posB=tubeBElement.object3D.position;
-
-const distance=Math.sqrt(
-Math.pow(posA.x-posB.x,2)+
-Math.pow(posA.z-posB.z,2)
-);
-
-document.getElementById("position-info").innerHTML=
-"Blue Tilt: "+Math.round(tiltAngle)+"°<br>"+
-"Blue Liquid: "+Math.round((liquidLevelA/0.45)*100)+"%<br>"+
-"Yellow Liquid: "+Math.round((liquidLevelB/0.45)*100)+"%<br>"+
-"Distance: "+distance.toFixed(2);
+document.getElementById("status").innerText="Reaction Complete"
 
 }
 
+else{
+
+const r=Math.round(0+200*amount)
+const g=Math.round(100+155*amount)
+const b=Math.round(100+100*amount)
+
+const color=`rgb(${r},${g},${b})`
+
+document.querySelector("#liquidA").setAttribute("color",color)
+document.querySelector("#liquidB").setAttribute("color",color)
+
 }
-
-
-function completeReaction(){
-
-document.getElementById("status").innerText="Reaction Complete!";
-document.querySelector(".instruction").innerText="Experiment Finished";
 
 }
 
 
 function resetExperiment(){
 
-liquidLevelA=0.45;
-liquidLevelB=0.45;
-tiltAngle=0;
-pouredAmount=0;
+liquidLevelA=0.45
+liquidLevelB=0.45
+pouredAmount=0
 
-updateLiquidLevels();
-mixLiquids(0);
+updateLiquidLevels()
+mixLiquids(0)
 
-document.getElementById("status").innerText="Scan markers";
+document.getElementById("status").innerText="Scan markers"
 
 }
 
 </script>
 </head>
 
+
 <body>
 
 <div id="hud">
+
 <h3>AR Chemical Mixing</h3>
-<p id="status">Scan markers</p>
+
+<p id="status">Scan both markers</p>
+
 <button onclick="resetExperiment()">Reset</button>
+
 </div>
 
-<div class="position-info" id="position-info"></div>
 
 <div class="angle-display">0°</div>
 
-<div class="instruction">
-Show both markers
-</div>
 
-<a-scene embedded arjs="debugUIEnabled:false">
+<a-scene embedded arjs="debugUIEnabled:false" pour-system>
 
 <a-light type="ambient" intensity="0.8"></a-light>
+
 
 <a-marker id="markerA" type="pattern" url="markers/testtube_markerA.patt">
 
 <a-entity id="tubeA">
 
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0"
-color="#ffffff" opacity="0.5"></a-cylinder>
+<a-cylinder
+radius="0.15"
+height="0.6"
+position="0 0.3 0"
+color="#ffffff"
+opacity="0.55">
+</a-cylinder>
 
-<a-cylinder id="liquidA"
+<a-cylinder
+id="liquidA"
 radius="0.13"
 height="0.45"
 position="0 0.225 0"
-color="#0066cc"></a-cylinder>
+color="#0066cc">
+</a-cylinder>
 
-<a-text value="BLUE" position="0 0.7 0" color="#0066cc"></a-text>
+<a-text value="BLUE"
+position="0 0.7 0"
+align="center"
+color="#0066cc">
+</a-text>
 
 </a-entity>
 
 </a-marker>
+
 
 <a-marker id="markerB" type="pattern" url="markers/testtube_markerB.patt">
 
 <a-entity id="tubeB">
 
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0"
-color="#ffffff" opacity="0.5"></a-cylinder>
+<a-cylinder
+radius="0.15"
+height="0.6"
+position="0 0.3 0"
+color="#ffffff"
+opacity="0.55">
+</a-cylinder>
 
-<a-cylinder id="liquidB"
+<a-cylinder
+id="liquidB"
 radius="0.13"
 height="0.45"
 position="0 0.225 0"
-color="#ffaa00"></a-cylinder>
+color="#ffaa00">
+</a-cylinder>
 
-<a-text value="YELLOW" position="0 0.7 0" color="#ffaa00"></a-text>
+<a-text value="YELLOW"
+position="0 0.7 0"
+align="center"
+color="#ffaa00">
+</a-text>
 
 </a-entity>
 
 </a-marker>
+
 
 <a-entity camera></a-entity>
 
