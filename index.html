@@ -77,21 +77,29 @@ let liquidLevelB=0.45
 
 let tiltAngle=0
 let pouredAmount=0
-let reactionComplete=false
+let reactionStarted=false
 let pouring=false
 
 const BLUE='#0066cc'
 const YELLOW='#ffaa00'
 const GREEN='#00cc66'
 
-// HIGHER THRESHOLDS - requires more deliberate action!
-const REQUIRED_DISTANCE = 8  // Was 1.5 - now need to be VERY close
-const REQUIRED_TILT = 45       // Was 20° - now need significant tilt (45°)
+// Thresholds - requires deliberate action
+const REQUIRED_DISTANCE = 0.8
+const REQUIRED_TILT = 45
 
+// Flag to ensure colors are set correctly at start
+let colorsInitialized = false
 
 document.addEventListener("DOMContentLoaded",function(){
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
+
+// Set initial colors explicitly
+setTimeout(() => {
+mixLiquids(0) // Force blue and yellow
+colorsInitialized = true
+}, 500)
 })
 
 
@@ -104,6 +112,8 @@ const markerA=document.querySelector("#markerA")
 const markerB=document.querySelector("#markerB")
 
 if(!markerA || !markerB) return
+
+// If markers not visible, just return
 if(!markerA.object3D.visible || !markerB.object3D.visible){
 document.getElementById("status").innerHTML = "🔍 Scan both markers"
 return
@@ -144,40 +154,17 @@ document.querySelector(".distance-display").innerHTML =
 `📏 Distance: ${distance.toFixed(2)}<br>🎯 Need: < ${REQUIRED_DISTANCE}`
 
 // REACTION CONDITION: Tilt > REQUIRED_TILT AND Distance < REQUIRED_DISTANCE
-if(distance < REQUIRED_DISTANCE && tiltAngle > REQUIRED_TILT && !reactionComplete){
+if(distance < REQUIRED_DISTANCE && tiltAngle > REQUIRED_TILT && !reactionStarted){
 
 pouring = true
-
-// Calculate pour speed based on tilt
-let speed = tiltAngle / 3000
-
-// Transfer liquid
-liquidLevelA = Math.max(0.1, liquidLevelA - speed)
-liquidLevelB = Math.min(0.6, liquidLevelB + speed)
-pouredAmount += speed
-
-updateLiquidLevels()
-
-// Create droplets
-if(Math.random() < 0.5){
-createDroplet()
-}
-
-// Mix colors - THIS CREATES GREEN!
-const mixAmount = Math.min(1, pouredAmount / 0.35)
-mixLiquids(mixAmount)
+reactionStarted = true
 
 document.getElementById("status").innerHTML = 
 `💧 POURING! ${Math.round(tiltAngle)}° tilt`
 
-// Check if reaction is complete
-if(pouredAmount >= 0.35){
-reactionComplete = true
-pouring = false
-document.getElementById("status").innerHTML = "🧪 REACTION COMPLETE! GREEN! 🧪"
-document.querySelector(".angle-display").style.color = "#00ff00"
-document.querySelector(".angle-display").style.borderColor = "#00ff00"
-}
+// Start pouring animation
+startPouring()
+
 }
 else if(distance >= REQUIRED_DISTANCE && tiltAngle > REQUIRED_TILT){
 // Tilted but too far
@@ -195,8 +182,8 @@ document.getElementById("status").innerHTML =
 document.querySelector(".angle-display").style.color = "#ffaa00"
 document.querySelector(".angle-display").style.borderColor = "#ffaa00"
 }
-else if(!reactionComplete){
-// Both conditions not met
+else if(!reactionStarted){
+// Both conditions not met - keep original colors
 pouring = false
 document.getElementById("status").innerHTML = 
 `✅ Need: Distance < ${REQUIRED_DISTANCE} AND Tilt > ${REQUIRED_TILT}°`
@@ -205,6 +192,40 @@ document.querySelector(".angle-display").style.borderColor = "white"
 }
 }
 })
+
+
+function startPouring() {
+let count = 0
+const totalSteps = 40
+
+const pourInterval = setInterval(() => {
+if(count >= totalSteps) {
+clearInterval(pourInterval)
+document.getElementById("status").innerHTML = "🧪 REACTION COMPLETE! GREEN! 🧪"
+document.querySelector(".angle-display").style.color = "#00ff00"
+document.querySelector(".angle-display").style.borderColor = "#00ff00"
+return
+}
+
+// Transfer liquid gradually
+liquidLevelA = Math.max(0.1, liquidLevelA - 0.008)
+liquidLevelB = Math.min(0.6, liquidLevelB + 0.008)
+pouredAmount += 0.008
+
+updateLiquidLevels()
+
+// Create droplets
+if(Math.random() < 0.4){
+createDroplet()
+}
+
+// Gradually mix colors - THIS CREATES GREEN OVER TIME!
+const mixAmount = Math.min(1, pouredAmount / 0.35)
+mixLiquids(mixAmount)
+
+count++
+}, 50)
+}
 
 
 function updateLiquidLevels(){
@@ -231,7 +252,7 @@ surfaceB.setAttribute("position", `0 ${0.15+liquidLevelB} 0`)
 
 
 function createDroplet(){
-if(!tubeAElement || !tubeBElement || !pouring) return
+if(!tubeAElement || !tubeBElement) return
 
 const drop=document.createElement("a-sphere")
 drop.setAttribute("radius","0.018")
@@ -267,30 +288,31 @@ setTimeout(()=>drop.remove(),500)
 
 
 function mixLiquids(amount){
-if(amount<=0){
-document.querySelector("#liquidA")?.setAttribute("color",BLUE)
-document.querySelector("#surfaceA")?.setAttribute("color",BLUE)
-document.querySelector("#liquidB")?.setAttribute("color",YELLOW)
-document.querySelector("#surfaceB")?.setAttribute("color",YELLOW)
+if(amount <= 0.01){
+// PURE BLUE AND YELLOW - INITIAL STATE
+document.querySelector("#liquidA")?.setAttribute("color", BLUE)
+document.querySelector("#surfaceA")?.setAttribute("color", BLUE)
+document.querySelector("#liquidB")?.setAttribute("color", YELLOW)
+document.querySelector("#surfaceB")?.setAttribute("color", YELLOW)
 }
-else if(amount>=1){
-// FULL GREEN!
-document.querySelector("#liquidA")?.setAttribute("color",GREEN)
-document.querySelector("#surfaceA")?.setAttribute("color",GREEN)
-document.querySelector("#liquidB")?.setAttribute("color",GREEN)
-document.querySelector("#surfaceB")?.setAttribute("color",GREEN)
+else if(amount >= 0.99){
+// FULL GREEN - FINAL STATE
+document.querySelector("#liquidA")?.setAttribute("color", GREEN)
+document.querySelector("#surfaceA")?.setAttribute("color", GREEN)
+document.querySelector("#liquidB")?.setAttribute("color", GREEN)
+document.querySelector("#surfaceB")?.setAttribute("color", GREEN)
 }
 else{
-// GRADUAL GREEN MIXING
-const r=Math.round(0 + 200 * amount)
-const g=Math.round(100 + 155 * amount)
-const b=Math.round(100 + 100 * amount)
-const color=`rgb(${r},${g},${b})`
+// GRADUAL GREEN MIXING - DURING POURING
+const r = Math.round(0 + 200 * amount)
+const g = Math.round(100 + 155 * amount)
+const b = Math.round(100 + 100 * amount)
+const color = `rgb(${r},${g},${b})`
 
-document.querySelector("#liquidA")?.setAttribute("color",color)
-document.querySelector("#surfaceA")?.setAttribute("color",color)
-document.querySelector("#liquidB")?.setAttribute("color",color)
-document.querySelector("#surfaceB")?.setAttribute("color",color)
+document.querySelector("#liquidA")?.setAttribute("color", color)
+document.querySelector("#surfaceA")?.setAttribute("color", color)
+document.querySelector("#liquidB")?.setAttribute("color", color)
+document.querySelector("#surfaceB")?.setAttribute("color", color)
 }
 }
 
@@ -300,11 +322,11 @@ liquidLevelA=0.45
 liquidLevelB=0.45
 pouredAmount=0
 tiltAngle=0
-reactionComplete=false
+reactionStarted=false
 pouring=false
 
 updateLiquidLevels()
-mixLiquids(0)
+mixLiquids(0) // Force back to BLUE and YELLOW
 
 document.getElementById("status").innerHTML="🔍 Scan both markers"
 document.querySelector(".angle-display").style.color="white"
@@ -324,10 +346,10 @@ document.querySelector(".angle-display").style.display="none"
 </div>
 
 <div class="distance-display">
-📏 Distance: --<br>🎯 Need: < 8
+📏 Distance: --<br>🎯 Need: < 0.8
 </div>
 
-<div class="angle-display">45°</div>
+<div class="angle-display">0°</div>
 
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system>
@@ -361,4 +383,3 @@ document.querySelector(".angle-display").style.display="none"
 
 </body>
 </html>
-
