@@ -84,6 +84,10 @@ const BLUE='#0066cc'
 const YELLOW='#ffaa00'
 const GREEN='#00cc66'
 
+// HIGHER THRESHOLDS - requires more deliberate action!
+const REQUIRED_DISTANCE = 0.8  // Was 1.5 - now need to be VERY close
+const REQUIRED_TILT = 45       // Was 20° - now need significant tilt (45°)
+
 
 document.addEventListener("DOMContentLoaded",function(){
 tubeAElement=document.querySelector("#tubeA")
@@ -123,7 +127,7 @@ tubeAElement.setAttribute("rotation", `-${tiltAngle} ${rotYA} ${rotZA}`)
 tubeBElement.setAttribute("rotation", `0 ${rotYB} 0`)
 
 // Show angle display when tilted
-if(tiltAngle>5){
+if(tiltAngle>10){
 document.querySelector(".angle-display").style.display="block"
 document.querySelector(".angle-display").innerText= Math.round(tiltAngle)+"°"
 }else{
@@ -137,10 +141,10 @@ const distance=posA.distanceTo(posB)
 
 // Update distance display
 document.querySelector(".distance-display").innerHTML = 
-`📏 Distance: ${distance.toFixed(2)}<br>🎯 Need: < 1.5`
+`📏 Distance: ${distance.toFixed(2)}<br>🎯 Need: < ${REQUIRED_DISTANCE}`
 
-// REACTION CONDITION: Tilt > 20° AND Distance < 1.5
-if(distance < 1.5 && tiltAngle > 20 && !reactionComplete){
+// REACTION CONDITION: Tilt > REQUIRED_TILT AND Distance < REQUIRED_DISTANCE
+if(distance < REQUIRED_DISTANCE && tiltAngle > REQUIRED_TILT && !reactionComplete){
 
 pouring = true
 
@@ -175,27 +179,27 @@ document.querySelector(".angle-display").style.color = "#00ff00"
 document.querySelector(".angle-display").style.borderColor = "#00ff00"
 }
 }
-else if(distance >= 1.5 && tiltAngle > 20){
+else if(distance >= REQUIRED_DISTANCE && tiltAngle > REQUIRED_TILT){
 // Tilted but too far
 pouring = false
 document.getElementById("status").innerHTML = 
-"⚠️ TOO FAR! Bring markers closer"
+`⚠️ TOO FAR! Need distance < ${REQUIRED_DISTANCE}`
 document.querySelector(".angle-display").style.color = "#ffaa00"
 document.querySelector(".angle-display").style.borderColor = "#ffaa00"
 }
-else if(distance < 1.5 && tiltAngle <= 20){
+else if(distance < REQUIRED_DISTANCE && tiltAngle <= REQUIRED_TILT){
 // Close but not tilted enough
 pouring = false
 document.getElementById("status").innerHTML = 
-"👆 Tilt blue marker more (>20°)"
-document.querySelector(".angle-display").style.color = "white"
-document.querySelector(".angle-display").style.borderColor = "white"
+`👆 Need more tilt: ${Math.round(tiltAngle)}° / ${REQUIRED_TILT}°`
+document.querySelector(".angle-display").style.color = "#ffaa00"
+document.querySelector(".angle-display").style.borderColor = "#ffaa00"
 }
 else if(!reactionComplete){
 // Both conditions not met
 pouring = false
 document.getElementById("status").innerHTML = 
-"✅ Bring markers close AND tilt blue marker"
+`✅ Need: Distance < ${REQUIRED_DISTANCE} AND Tilt > ${REQUIRED_TILT}°`
 document.querySelector(".angle-display").style.color = "white"
 document.querySelector(".angle-display").style.borderColor = "white"
 }
@@ -320,7 +324,7 @@ document.querySelector(".angle-display").style.display="none"
 </div>
 
 <div class="distance-display">
-📏 Distance: --<br>🎯 Need: < 1.5
+📏 Distance: --<br>🎯 Need: < 0.8
 </div>
 
 <div class="angle-display">0°</div>
