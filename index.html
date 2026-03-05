@@ -78,6 +78,7 @@ let liquidLevelB=0.45
 let tiltAngle=0
 let pouredAmount=0
 let reactionComplete=false
+let pouring=false
 
 const BLUE='#0066cc'
 const YELLOW='#ffaa00'
@@ -99,7 +100,10 @@ const markerA=document.querySelector("#markerA")
 const markerB=document.querySelector("#markerB")
 
 if(!markerA || !markerB) return
-if(!markerA.object3D.visible || !markerB.object3D.visible) return
+if(!markerA.object3D.visible || !markerB.object3D.visible){
+document.getElementById("status").innerHTML = "🔍 Scan both markers"
+return
+}
 
 // Get marker rotations
 const rotA=markerA.object3D.rotation
@@ -109,7 +113,6 @@ const rotXA=rotA.x*(180/Math.PI)
 const rotYA=rotA.y*(180/Math.PI)
 const rotZA=rotA.z*(180/Math.PI)
 
-const rotXB=rotB.x*(180/Math.PI)
 const rotYB=rotB.y*(180/Math.PI)
 
 // Calculate tilt (only forward tilt matters)
@@ -134,13 +137,15 @@ const distance=posA.distanceTo(posB)
 
 // Update distance display
 document.querySelector(".distance-display").innerHTML = 
-`📏 Distance: ${distance.toFixed(2)}<br>🎯 Need: < 2.0`
+`📏 Distance: ${distance.toFixed(2)}<br>🎯 Need: < 1.5`
 
-// REACTION CONDITION: Tilt > 20° AND Distance < 2.0
-if(distance < 2.0 && tiltAngle > 20 && !reactionComplete){
+// REACTION CONDITION: Tilt > 20° AND Distance < 1.5
+if(distance < 1.5 && tiltAngle > 20 && !reactionComplete){
+
+pouring = true
 
 // Calculate pour speed based on tilt
-let speed = tiltAngle / 2000
+let speed = tiltAngle / 3000
 
 // Transfer liquid
 liquidLevelA = Math.max(0.1, liquidLevelA - speed)
@@ -150,7 +155,7 @@ pouredAmount += speed
 updateLiquidLevels()
 
 // Create droplets
-if(Math.random() < 0.4){
+if(Math.random() < 0.5){
 createDroplet()
 }
 
@@ -164,22 +169,35 @@ document.getElementById("status").innerHTML =
 // Check if reaction is complete
 if(pouredAmount >= 0.35){
 reactionComplete = true
-document.getElementById("status").innerHTML = "🧪 REACTION COMPLETE! GREEN!"
+pouring = false
+document.getElementById("status").innerHTML = "🧪 REACTION COMPLETE! GREEN! 🧪"
 document.querySelector(".angle-display").style.color = "#00ff00"
 document.querySelector(".angle-display").style.borderColor = "#00ff00"
 }
 }
-else if(distance >= 2.0 && tiltAngle > 20){
+else if(distance >= 1.5 && tiltAngle > 20){
+// Tilted but too far
+pouring = false
 document.getElementById("status").innerHTML = 
-"⚠️ TOO FAR! Move markers closer"
+"⚠️ TOO FAR! Bring markers closer"
+document.querySelector(".angle-display").style.color = "#ffaa00"
+document.querySelector(".angle-display").style.borderColor = "#ffaa00"
 }
-else if(distance < 2.0 && tiltAngle <= 20){
+else if(distance < 1.5 && tiltAngle <= 20){
+// Close but not tilted enough
+pouring = false
 document.getElementById("status").innerHTML = 
 "👆 Tilt blue marker more (>20°)"
+document.querySelector(".angle-display").style.color = "white"
+document.querySelector(".angle-display").style.borderColor = "white"
 }
 else if(!reactionComplete){
+// Both conditions not met
+pouring = false
 document.getElementById("status").innerHTML = 
-"✅ READY! Bring markers close and tilt"
+"✅ Bring markers close AND tilt blue marker"
+document.querySelector(".angle-display").style.color = "white"
+document.querySelector(".angle-display").style.borderColor = "white"
 }
 }
 })
@@ -209,22 +227,22 @@ surfaceB.setAttribute("position", `0 ${0.15+liquidLevelB} 0`)
 
 
 function createDroplet(){
-if(!tubeAElement || !tubeBElement) return
+if(!tubeAElement || !tubeBElement || !pouring) return
 
 const drop=document.createElement("a-sphere")
 drop.setAttribute("radius","0.018")
 drop.setAttribute("color",BLUE)
 drop.setAttribute("opacity","0.9")
 
-const startX=tubeAElement.object3D.position.x
+const startX=tubeAElement.object3D.position.x + (Math.random()-0.5)*0.1
 const startY=tubeAElement.object3D.position.y+0.3
-const startZ=tubeAElement.object3D.position.z
+const startZ=tubeAElement.object3D.position.z + (Math.random()-0.5)*0.1
 
 drop.setAttribute("position",{x:startX,y:startY,z:startZ})
 
-const targetX=tubeBElement.object3D.position.x
+const targetX=tubeBElement.object3D.position.x + (Math.random()-0.5)*0.1
 const targetY=tubeBElement.object3D.position.y+0.4
-const targetZ=tubeBElement.object3D.position.z
+const targetZ=tubeBElement.object3D.position.z + (Math.random()-0.5)*0.1
 
 drop.setAttribute("animation",{
 property:"position",
@@ -279,11 +297,12 @@ liquidLevelB=0.45
 pouredAmount=0
 tiltAngle=0
 reactionComplete=false
+pouring=false
 
 updateLiquidLevels()
 mixLiquids(0)
 
-document.getElementById("status").innerHTML="Scan both markers"
+document.getElementById("status").innerHTML="🔍 Scan both markers"
 document.querySelector(".angle-display").style.color="white"
 document.querySelector(".angle-display").style.borderColor="white"
 document.querySelector(".angle-display").style.display="none"
@@ -296,12 +315,12 @@ document.querySelector(".angle-display").style.display="none"
 
 <div id="hud">
 <h3>🧪 AR Chemical Mixing</h3>
-<p id="status">Scan both markers</p>
+<p id="status">🔍 Scan both markers</p>
 <button onclick="resetExperiment()">🔄 Reset</button>
 </div>
 
 <div class="distance-display">
-📏 Distance: --<br>🎯 Need: < 2.0
+📏 Distance: --<br>🎯 Need: < 1.5
 </div>
 
 <div class="angle-display">0°</div>
