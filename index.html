@@ -23,6 +23,7 @@ color:white;
 padding:15px;
 border-radius:10px;
 z-index:1000;
+border-left:5px solid #00ff00;
 }
 
 button{
@@ -33,6 +34,7 @@ padding:8px 15px;
 border-radius:5px;
 margin-top:5px;
 cursor:pointer;
+font-weight:bold;
 }
 
 .angle-display{
@@ -40,13 +42,28 @@ position:absolute;
 top:50%;
 left:50%;
 transform:translate(-50%,-50%);
-font-size:60px;
+font-size:72px;
 font-weight:bold;
 color:white;
-background:rgba(0,0,0,0.6);
-padding:10px 40px;
-border-radius:50px;
+background:rgba(0,0,0,0.7);
+padding:10px 50px;
+border-radius:60px;
+border:4px solid white;
 display:none;
+z-index:1000;
+}
+
+.distance-display{
+position:absolute;
+top:20px;
+right:20px;
+background:rgba(0,0,0,0.7);
+color:#ffaa00;
+padding:10px 20px;
+border-radius:30px;
+font-weight:bold;
+z-index:1000;
+border-right:5px solid #ffaa00;
 }
 </style>
 
@@ -60,6 +77,7 @@ let liquidLevelB=0.45
 
 let tiltAngle=0
 let pouredAmount=0
+let reactionComplete=false
 
 const BLUE='#0066cc'
 const YELLOW='#ffaa00'
@@ -67,15 +85,12 @@ const GREEN='#00cc66'
 
 
 document.addEventListener("DOMContentLoaded",function(){
-
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
-
 })
 
 
 AFRAME.registerComponent("pour-system",{
-
 tick:function(){
 
 if(!tubeAElement || !tubeBElement) return
@@ -83,96 +98,123 @@ if(!tubeAElement || !tubeBElement) return
 const markerA=document.querySelector("#markerA")
 const markerB=document.querySelector("#markerB")
 
+if(!markerA || !markerB) return
 if(!markerA.object3D.visible || !markerB.object3D.visible) return
 
+// Get marker rotations
+const rotA=markerA.object3D.rotation
+const rotB=markerB.object3D.rotation
 
-const rot=markerA.object3D.rotation
+const rotXA=rotA.x*(180/Math.PI)
+const rotYA=rotA.y*(180/Math.PI)
+const rotZA=rotA.z*(180/Math.PI)
 
-const rotX=rot.x*(180/Math.PI)
-const rotY=rot.y*(180/Math.PI)
-const rotZ=rot.z*(180/Math.PI)
+const rotXB=rotB.x*(180/Math.PI)
+const rotYB=rotB.y*(180/Math.PI)
 
-tiltAngle=Math.max(0,rotX)
+// Calculate tilt (only forward tilt matters)
+tiltAngle=Math.max(0, rotXA)
 
-tubeAElement.setAttribute("rotation",
-`-${tiltAngle} ${rotY} ${rotZ}`)
+// Apply rotation to tubes (blue tilts, yellow stays upright)
+tubeAElement.setAttribute("rotation", `-${tiltAngle} ${rotYA} ${rotZA}`)
+tubeBElement.setAttribute("rotation", `0 ${rotYB} 0`)
 
+// Show angle display when tilted
 if(tiltAngle>5){
-
 document.querySelector(".angle-display").style.display="block"
-document.querySelector(".angle-display").innerText=
-Math.round(tiltAngle)+"°"
-
+document.querySelector(".angle-display").innerText= Math.round(tiltAngle)+"°"
 }else{
-
 document.querySelector(".angle-display").style.display="none"
-
 }
 
-
+// Calculate distance between tubes
 const posA=tubeAElement.object3D.position
 const posB=tubeBElement.object3D.position
-
 const distance=posA.distanceTo(posB)
 
+// Update distance display
+document.querySelector(".distance-display").innerHTML = 
+`📏 Distance: ${distance.toFixed(2)}<br>🎯 Need: < 2.0`
 
-if(distance<2 && tiltAngle>10){
+// REACTION CONDITION: Tilt > 20° AND Distance < 2.0
+if(distance < 2.0 && tiltAngle > 20 && !reactionComplete){
 
-let speed=tiltAngle/4000
+// Calculate pour speed based on tilt
+let speed = tiltAngle / 2000
 
-liquidLevelA=Math.max(0.1,liquidLevelA-speed)
-liquidLevelB=Math.min(0.6,liquidLevelB+speed)
-
-pouredAmount+=speed
+// Transfer liquid
+liquidLevelA = Math.max(0.1, liquidLevelA - speed)
+liquidLevelB = Math.min(0.6, liquidLevelB + speed)
+pouredAmount += speed
 
 updateLiquidLevels()
 
-if(Math.random()<0.25){
+// Create droplets
+if(Math.random() < 0.4){
 createDroplet()
 }
 
-mixLiquids(Math.min(1,pouredAmount/0.35))
+// Mix colors - THIS CREATES GREEN!
+const mixAmount = Math.min(1, pouredAmount / 0.35)
+mixLiquids(mixAmount)
 
-document.getElementById("status").innerText=
-"Pouring... "+Math.round(tiltAngle)+"°"
+document.getElementById("status").innerHTML = 
+`💧 POURING! ${Math.round(tiltAngle)}° tilt`
 
+// Check if reaction is complete
+if(pouredAmount >= 0.35){
+reactionComplete = true
+document.getElementById("status").innerHTML = "🧪 REACTION COMPLETE! GREEN!"
+document.querySelector(".angle-display").style.color = "#00ff00"
+document.querySelector(".angle-display").style.borderColor = "#00ff00"
 }
-
 }
-
+else if(distance >= 2.0 && tiltAngle > 20){
+document.getElementById("status").innerHTML = 
+"⚠️ TOO FAR! Move markers closer"
+}
+else if(distance < 2.0 && tiltAngle <= 20){
+document.getElementById("status").innerHTML = 
+"👆 Tilt blue marker more (>20°)"
+}
+else if(!reactionComplete){
+document.getElementById("status").innerHTML = 
+"✅ READY! Bring markers close and tilt"
+}
+}
 })
 
 
 function updateLiquidLevels(){
-
 const liquidA=document.querySelector("#liquidA")
 const liquidB=document.querySelector("#liquidB")
+const surfaceA=document.querySelector("#surfaceA")
+const surfaceB=document.querySelector("#surfaceB")
 
 if(liquidA){
-
-liquidA.setAttribute("height",liquidLevelA)
-liquidA.setAttribute("position",
-`0 ${0.15+liquidLevelA/2} 0`)
-
+liquidA.setAttribute("height", liquidLevelA)
+liquidA.setAttribute("position", `0 ${0.15+liquidLevelA/2} 0`)
 }
-
+if(surfaceA){
+surfaceA.setAttribute("position", `0 ${0.15+liquidLevelA} 0`)
+}
 if(liquidB){
-
-liquidB.setAttribute("height",liquidLevelB)
-liquidB.setAttribute("position",
-`0 ${0.15+liquidLevelB/2} 0`)
-
+liquidB.setAttribute("height", liquidLevelB)
+liquidB.setAttribute("position", `0 ${0.15+liquidLevelB/2} 0`)
 }
-
+if(surfaceB){
+surfaceB.setAttribute("position", `0 ${0.15+liquidLevelB} 0`)
+}
 }
 
 
 function createDroplet(){
+if(!tubeAElement || !tubeBElement) return
 
 const drop=document.createElement("a-sphere")
-
-drop.setAttribute("radius","0.015")
+drop.setAttribute("radius","0.018")
 drop.setAttribute("color",BLUE)
+drop.setAttribute("opacity","0.9")
 
 const startX=tubeAElement.object3D.position.x
 const startY=tubeAElement.object3D.position.y+0.3
@@ -187,63 +229,65 @@ const targetZ=tubeBElement.object3D.position.z
 drop.setAttribute("animation",{
 property:"position",
 to:`${targetX} ${targetY} ${targetZ}`,
+dur:500,
+easing:"easeInQuad"
+})
+
+drop.setAttribute("animation__opacity",{
+property:"opacity",
+to:"0",
 dur:500
 })
 
 document.querySelector("a-scene").appendChild(drop)
-
 setTimeout(()=>drop.remove(),500)
-
 }
 
 
 function mixLiquids(amount){
-
 if(amount<=0){
-
-document.querySelector("#liquidA").setAttribute("color",BLUE)
-document.querySelector("#liquidB").setAttribute("color",YELLOW)
-
+document.querySelector("#liquidA")?.setAttribute("color",BLUE)
+document.querySelector("#surfaceA")?.setAttribute("color",BLUE)
+document.querySelector("#liquidB")?.setAttribute("color",YELLOW)
+document.querySelector("#surfaceB")?.setAttribute("color",YELLOW)
 }
-
 else if(amount>=1){
-
-document.querySelector("#liquidA").setAttribute("color",GREEN)
-document.querySelector("#liquidB").setAttribute("color",GREEN)
-
-document.getElementById("status").innerText="Reaction Complete"
-
+// FULL GREEN!
+document.querySelector("#liquidA")?.setAttribute("color",GREEN)
+document.querySelector("#surfaceA")?.setAttribute("color",GREEN)
+document.querySelector("#liquidB")?.setAttribute("color",GREEN)
+document.querySelector("#surfaceB")?.setAttribute("color",GREEN)
 }
-
 else{
-
-const r=Math.round(0+200*amount)
-const g=Math.round(100+155*amount)
-const b=Math.round(100+100*amount)
-
+// GRADUAL GREEN MIXING
+const r=Math.round(0 + 200 * amount)
+const g=Math.round(100 + 155 * amount)
+const b=Math.round(100 + 100 * amount)
 const color=`rgb(${r},${g},${b})`
 
-document.querySelector("#liquidA").setAttribute("color",color)
-document.querySelector("#liquidB").setAttribute("color",color)
-
+document.querySelector("#liquidA")?.setAttribute("color",color)
+document.querySelector("#surfaceA")?.setAttribute("color",color)
+document.querySelector("#liquidB")?.setAttribute("color",color)
+document.querySelector("#surfaceB")?.setAttribute("color",color)
 }
-
 }
 
 
 function resetExperiment(){
-
 liquidLevelA=0.45
 liquidLevelB=0.45
 pouredAmount=0
+tiltAngle=0
+reactionComplete=false
 
 updateLiquidLevels()
 mixLiquids(0)
 
-document.getElementById("status").innerText="Scan markers"
-
+document.getElementById("status").innerHTML="Scan both markers"
+document.querySelector(".angle-display").style.color="white"
+document.querySelector(".angle-display").style.borderColor="white"
+document.querySelector(".angle-display").style.display="none"
 }
-
 </script>
 </head>
 
@@ -251,15 +295,14 @@ document.getElementById("status").innerText="Scan markers"
 <body>
 
 <div id="hud">
-
-<h3>AR Chemical Mixing</h3>
-
+<h3>🧪 AR Chemical Mixing</h3>
 <p id="status">Scan both markers</p>
-
-<button onclick="resetExperiment()">Reset</button>
-
+<button onclick="resetExperiment()">🔄 Reset</button>
 </div>
 
+<div class="distance-display">
+📏 Distance: --<br>🎯 Need: < 2.0
+</div>
 
 <div class="angle-display">0°</div>
 
@@ -270,64 +313,22 @@ document.getElementById("status").innerText="Scan markers"
 
 
 <a-marker id="markerA" type="pattern" url="markers/testtube_markerA.patt">
-
 <a-entity id="tubeA">
-
-<a-cylinder
-radius="0.15"
-height="0.6"
-position="0 0.3 0"
-color="#ffffff"
-opacity="0.55">
-</a-cylinder>
-
-<a-cylinder
-id="liquidA"
-radius="0.13"
-height="0.45"
-position="0 0.225 0"
-color="#0066cc">
-</a-cylinder>
-
-<a-text value="BLUE"
-position="0 0.7 0"
-align="center"
-color="#0066cc">
-</a-text>
-
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#ffffff" opacity="0.55" transparent="true"></a-cylinder>
+<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0066cc" opacity="0.95"></a-cylinder>
+<a-circle id="surfaceA" radius="0.13" position="0 0.45 0" color="#0066cc" rotation="-90 0 0"></a-circle>
+<a-text value="BLUE" position="0 0.7 0" align="center" color="#0066cc"></a-text>
 </a-entity>
-
 </a-marker>
 
 
 <a-marker id="markerB" type="pattern" url="markers/testtube_markerB.patt">
-
 <a-entity id="tubeB">
-
-<a-cylinder
-radius="0.15"
-height="0.6"
-position="0 0.3 0"
-color="#ffffff"
-opacity="0.55">
-</a-cylinder>
-
-<a-cylinder
-id="liquidB"
-radius="0.13"
-height="0.45"
-position="0 0.225 0"
-color="#ffaa00">
-</a-cylinder>
-
-<a-text value="YELLOW"
-position="0 0.7 0"
-align="center"
-color="#ffaa00">
-</a-text>
-
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#ffffff" opacity="0.55" transparent="true"></a-cylinder>
+<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffaa00" opacity="0.95"></a-cylinder>
+<a-circle id="surfaceB" radius="0.13" position="0 0.45 0" color="#ffaa00" rotation="-90 0 0"></a-circle>
+<a-text value="YELLOW" position="0 0.7 0" align="center" color="#ffaa00"></a-text>
 </a-entity>
-
 </a-marker>
 
 
