@@ -85,7 +85,7 @@ const YELLOW='#ffaa00'
 const GREEN='#00cc66'
 
 // HIGHER THRESHOLDS - requires more deliberate action!
-const REQUIRED_DISTANCE = 0.8  // Was 1.5 - now need to be VERY close
+const REQUIRED_DISTANCE = 8  // Was 1.5 - now need to be VERY close
 const REQUIRED_TILT = 45       // Was 20° - now need significant tilt (45°)
 
 
@@ -324,10 +324,10 @@ document.querySelector(".angle-display").style.display="none"
 </div>
 
 <div class="distance-display">
-📏 Distance: --<br>🎯 Need: < 0.8
+📏 Distance: --<br>🎯 Need: < 8
 </div>
 
-<div class="angle-display">0°</div>
+<div class="angle-display">45°</div>
 
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system>
@@ -361,3 +361,4 @@ document.querySelector(".angle-display").style.display="none"
 
 </body>
 </html>
+
