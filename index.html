@@ -2,17 +2,54 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Chemical Mixing - Fixed Reaction</title>
+<title>AR Chemical Mixing - Realistic Effects</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
 <style>
 body{margin:0;overflow:hidden;font-family:Arial;}
+
 #hud{
-position:absolute;top:10px;left:10px;
-background:rgba(0,0,0,0.8);color:white;
-padding:15px;border-radius:10px;z-index:1000;
+position:absolute;
+top:10px;
+left:10px;
+background:rgba(0,0,0,0.8);
+color:white;
+padding:15px;
+border-radius:10px;
+z-index:1000;
+}
+
+#eduPanel{
+position:absolute;
+bottom:10px;
+left:10px;
+background:rgba(0,0,0,0.8);
+color:white;
+padding:15px;
+border-radius:10px;
+width:260px;
+}
+
+button, select{
+margin-top:5px;
+padding:6px 10px;
+border:none;
+border-radius:5px;
+}
+
+.angle-display{
+position:absolute;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+font-size:60px;
+color:white;
+background:rgba(0,0,0,0.7);
+padding:10px 40px;
+border-radius:50px;
+display:none;
 }
 </style>
 
@@ -27,16 +64,12 @@ let liquidLevelB=0.45
 let pouredAmount=0
 let reactionStarted=false
 
+let currentExperiment="neutralization"
+let isPaused=false
 let pourInterval=null
 
 const REQUIRED_TILT=40
 const REQUIRED_DISTANCE=1.5
-
-// reusable vectors (IMPORTANT FIX)
-const posA=new THREE.Vector3()
-const posB=new THREE.Vector3()
-const tipA=new THREE.Vector3()
-const topB=new THREE.Vector3()
 
 document.addEventListener("DOMContentLoaded",()=>{
 tubeAElement=document.querySelector("#tubeA")
@@ -51,29 +84,26 @@ const markerB=document.querySelector("#markerB")
 
 if(!markerA.object3D.visible || !markerB.object3D.visible) return
 
-// tilt (same logic)
-const tilt=Math.abs(markerA.object3D.rotation.x*(180/Math.PI))
-tubeAElement.setAttribute("rotation",`-${tilt} 0 0`)
+const rotX=markerA.object3D.rotation.x*(180/Math.PI)
+const tiltAngle=Math.abs(rotX)
 
-// FIX: correct world positions
-markerA.object3D.getWorldPosition(posA)
-markerB.object3D.getWorldPosition(posB)
+tubeAElement.setAttribute("rotation",`-${tiltAngle} 0 0`)
 
-const dist=posA.distanceTo(posB)
+const posA=markerA.object3D.getWorldPosition(new THREE.Vector3())
+const posB=markerB.object3D.getWorldPosition(new THREE.Vector3())
 
-// FIX: correct tip position
-tipA.set(0,0.6,0)
+const distance=posA.distanceTo(posB)
+
+const tipA=new THREE.Vector3(0,0.6,0)
 tubeAElement.object3D.localToWorld(tipA)
 
-topB.set(0,0.6,0)
+const topB=new THREE.Vector3(0,0.6,0)
 tubeBElement.object3D.localToWorld(topB)
 
-// SAME LOGIC (unchanged)
-if(dist < REQUIRED_DISTANCE && tilt > REQUIRED_TILT && tipA.y > topB.y && !reactionStarted){
+if(distance<REQUIRED_DISTANCE && tiltAngle>REQUIRED_TILT && tipA.y>topB.y && !reactionStarted){
 reactionStarted=true
 startPouring()
 }
-
 }
 })
 
@@ -84,6 +114,8 @@ let count=0
 
 pourInterval=setInterval(()=>{
 
+if(isPaused) return
+
 if(count>=40){
 clearInterval(pourInterval)
 removeStream()
@@ -92,11 +124,20 @@ return
 
 liquidLevelA-=0.01
 liquidLevelB+=0.01
-pouredAmount+=0.01
 
 updateLiquidLevels()
 createStream()
+
+// effects
+if(currentExperiment==="neutralization"){
 createBubbles()
+}
+if(currentExperiment==="precipitation"){
+createFoam()
+}
+if(currentExperiment==="exothermic"){
+createSmoke()
+}
 
 count++
 
@@ -105,6 +146,12 @@ count++
 
 // 🌊 STREAM
 function createStream(){
+
+const posA=new THREE.Vector3()
+const posB=new THREE.Vector3()
+
+tubeAElement.object3D.getWorldPosition(posA)
+tubeBElement.object3D.getWorldPosition(posB)
 
 let stream=document.querySelector("#stream")
 
@@ -117,7 +164,6 @@ stream.setAttribute("opacity","0.8")
 document.querySelector("a-scene").appendChild(stream)
 }
 
-// FIX: use world positions
 const midX=(posA.x+posB.x)/2
 const midY=(posA.y+posB.y)/2
 const midZ=(posA.z+posB.z)/2
@@ -137,29 +183,105 @@ if(s) s.remove()
 // 🫧 BUBBLES
 function createBubbles(){
 
-for(let i=0;i<3;i++){
+for(let i=0;i<4;i++){
 
 const b=document.createElement("a-sphere")
 
-b.setAttribute("radius",0.02)
+b.setAttribute("radius",0.01+Math.random()*0.02)
 b.setAttribute("color","#aeefff")
 b.setAttribute("opacity",0.6)
 
+const pos=new THREE.Vector3()
+tubeBElement.object3D.getWorldPosition(pos)
+
 b.setAttribute("position",{
-x:posB.x+(Math.random()-0.5)*0.2,
-y:posB.y+0.2,
-z:posB.z+(Math.random()-0.5)*0.2
+x:pos.x+(Math.random()-0.5)*0.15,
+y:pos.y+0.1,
+z:pos.z+(Math.random()-0.5)*0.15
 })
 
-b.setAttribute("animation",{
+b.setAttribute("animation__rise",{
 property:"position",
-to:`${posB.x} ${posB.y+0.8} ${posB.z}`,
-dur:1000
+to:`${pos.x+(Math.random()-0.2)} ${pos.y+1} ${pos.z+(Math.random()-0.2)}`,
+dur:1200
+})
+
+b.setAttribute("animation__fade",{
+property:"opacity",
+to:0,
+dur:1200
 })
 
 document.querySelector("a-scene").appendChild(b)
+setTimeout(()=>b.remove(),1200)
+}
+}
 
-setTimeout(()=>b.remove(),1000)
+// 🫧 FOAM
+function createFoam(){
+
+for(let i=0;i<6;i++){
+
+const f=document.createElement("a-sphere")
+
+f.setAttribute("radius",0.02+Math.random()*0.03)
+f.setAttribute("color","#ffffff")
+f.setAttribute("opacity",0.9)
+
+const pos=new THREE.Vector3()
+tubeBElement.object3D.getWorldPosition(pos)
+
+f.setAttribute("position",{
+x:pos.x+(Math.random()-0.5)*0.2,
+y:pos.y+0.35,
+z:pos.z+(Math.random()-0.5)*0.2
+})
+
+f.setAttribute("animation",{
+property:"position",
+to:`${pos.x+(Math.random()-0.5)*0.3} ${pos.y+0.6} ${pos.z+(Math.random()-0.5)*0.3}`,
+dur:1500
+})
+
+document.querySelector("a-scene").appendChild(f)
+setTimeout(()=>f.remove(),1500)
+}
+}
+
+// ☁️ SMOKE
+function createSmoke(){
+
+for(let i=0;i<3;i++){
+
+const s=document.createElement("a-sphere")
+
+s.setAttribute("radius",0.05+Math.random()*0.08)
+s.setAttribute("color","#888888")
+s.setAttribute("opacity",0.3)
+
+const pos=new THREE.Vector3()
+tubeBElement.object3D.getWorldPosition(pos)
+
+s.setAttribute("position",{
+x:pos.x+(Math.random()-0.5)*0.1,
+y:pos.y+0.4,
+z:pos.z+(Math.random()-0.5)*0.1
+})
+
+s.setAttribute("animation__rise",{
+property:"position",
+to:`${pos.x+(Math.random()-0.5)*0.5} ${pos.y+1.5} ${pos.z+(Math.random()-0.5)*0.5}`,
+dur:2000
+})
+
+s.setAttribute("animation__fade",{
+property:"opacity",
+to:0,
+dur:2000
+})
+
+document.querySelector("a-scene").appendChild(s)
+setTimeout(()=>s.remove(),2000)
 }
 }
 
@@ -173,8 +295,15 @@ document.querySelector("#liquidB").setAttribute("height",liquidLevelB)
 document.querySelector("#liquidB").setAttribute("position",`0 ${0.15+liquidLevelB/2} 0`)
 }
 
+// 🔄 EXPERIMENT CHANGE
+function changeExperiment(type){
+currentExperiment=type
+resetExperiment()
+}
+
 // 🔄 RESET
 function resetExperiment(){
+
 liquidLevelA=0.45
 liquidLevelB=0.45
 reactionStarted=false
@@ -192,7 +321,21 @@ updateLiquidLevels()
 
 <div id="hud">
 <h3>AR Chemical Mixing</h3>
+
+<select onchange="changeExperiment(this.value)">
+<option value="neutralization">Neutralization</option>
+<option value="precipitation">Precipitation</option>
+<option value="exothermic">Exothermic</option>
+</select>
+
 <button onclick="resetExperiment()">Reset</button>
+</div>
+
+<div id="eduPanel">
+<h3>Effects</h3>
+<p>🫧 Gas (Neutralization)</p>
+<p>🧼 Foam (Precipitation)</p>
+<p>☁️ Smoke (Exothermic)</p>
 </div>
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system>
