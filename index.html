@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Chemical Mixing - Advanced</title>
+<title>AR Chemical Mixing - Advanced Visuals</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
@@ -29,7 +29,7 @@ background:rgba(0,0,0,0.8);
 color:white;
 padding:15px;
 border-radius:10px;
-width:250px;
+width:260px;
 }
 
 button, select{
@@ -132,15 +132,13 @@ function startPouring(){
 let count=0
 const totalSteps=40
 
-document.getElementById("pourSound").play()
-
 pourInterval=setInterval(()=>{
 
 if(isPaused) return
 
 if(count>=totalSteps){
 clearInterval(pourInterval)
-document.getElementById("reactionSound").play()
+removeStream()
 document.getElementById("status").innerText="Reaction Complete!"
 return
 }
@@ -151,8 +149,18 @@ liquidLevelB=Math.min(0.6,liquidLevelB+0.01)
 pouredAmount+=0.01
 
 updateLiquidLevels()
-createStream()
-createParticles()
+createRealisticStream()
+
+// effects
+if(currentExperiment==="neutralization"){
+createGasBubbles()
+}
+if(currentExperiment==="precipitation"){
+createFoam()
+}
+if(currentExperiment==="exothermic"){
+createSmoke()
+}
 
 mixLiquids(Math.min(1,pouredAmount/0.35))
 
@@ -162,60 +170,119 @@ count++
 
 }
 
-function createStream(){
+// 🌊 REALISTIC STREAM
+function createRealisticStream(){
 
-const stream=document.createElement("a-cylinder")
+const posA=new THREE.Vector3()
+const posB=new THREE.Vector3()
 
-stream.setAttribute("radius","0.02")
+tubeAElement.object3D.getWorldPosition(posA)
+tubeBElement.object3D.getWorldPosition(posB)
+
+let stream=document.querySelector("#liquidStream")
+
+if(!stream){
+stream=document.createElement("a-cylinder")
+stream.setAttribute("id","liquidStream")
+stream.setAttribute("radius","0.03")
 stream.setAttribute("color","#00ccff")
-
-const posA=tubeAElement.object3D.position
-const posB=tubeBElement.object3D.position
-
-stream.setAttribute("position",{
-x:(posA.x+posB.x)/2,
-y:(posA.y+posB.y)/2,
-z:(posA.z+posB.z)/2
-})
-
-stream.setAttribute("height","0.8")
-
+stream.setAttribute("opacity","0.8")
 document.querySelector("a-scene").appendChild(stream)
-
-setTimeout(()=>stream.remove(),100)
-
 }
 
-function createParticles(){
+const midX=(posA.x+posB.x)/2
+const midY=(posA.y+posB.y)/2
+const midZ=(posA.z+posB.z)/2
 
-const particle=document.createElement("a-sphere")
+const distance=posA.distanceTo(posB)
 
-particle.setAttribute("radius","0.03")
+stream.setAttribute("position",{x:midX,y:midY,z:midZ})
+stream.setAttribute("height",distance)
 
-if(currentExperiment==="precipitation"){
-particle.setAttribute("color","#ffffff")
-}else{
-particle.setAttribute("color","#00ffcc")
+stream.object3D.lookAt(posB)
 }
+
+function removeStream(){
+const stream=document.querySelector("#liquidStream")
+if(stream) stream.remove()
+}
+
+// 🫧 GAS
+function createGasBubbles(){
+
+for(let i=0;i<2;i++){
+const bubble=document.createElement("a-sphere")
+
+bubble.setAttribute("radius","0.02")
+bubble.setAttribute("color","#00ffff")
+bubble.setAttribute("opacity","0.7")
 
 const pos=tubeBElement.object3D.position
 
-particle.setAttribute("position",{
-x:pos.x+(Math.random()-0.5)*0.2,
-y:pos.y+0.3,
-z:pos.z+(Math.random()-0.5)*0.2
+bubble.setAttribute("position",{
+x:pos.x+(Math.random()-0.5)*0.3,
+y:pos.y+0.2,
+z:pos.z+(Math.random()-0.5)*0.3
 })
 
-particle.setAttribute("animation",{
+bubble.setAttribute("animation",{
 property:"position",
-to:`${pos.x} ${pos.y+0.6} ${pos.z}`,
-dur:800
+to:`${pos.x} ${pos.y+0.8} ${pos.z}`,
+dur:1200
 })
 
-document.querySelector("a-scene").appendChild(particle)
+document.querySelector("a-scene").appendChild(bubble)
+setTimeout(()=>bubble.remove(),1200)
+}
+}
 
-setTimeout(()=>particle.remove(),800)
+// 🫧 FOAM
+function createFoam(){
 
+const foam=document.createElement("a-cylinder")
+
+foam.setAttribute("radius","0.14")
+foam.setAttribute("height","0.05")
+foam.setAttribute("color","#ffffff")
+foam.setAttribute("opacity","0.9")
+
+const pos=tubeBElement.object3D.position
+
+foam.setAttribute("position",{
+x:pos.x,
+y:pos.y + liquidLevelB/2 + 0.3,
+z:pos.z
+})
+
+document.querySelector("a-scene").appendChild(foam)
+setTimeout(()=>foam.remove(),1500)
+}
+
+// ☁️ SMOKE
+function createSmoke(){
+
+const smoke=document.createElement("a-sphere")
+
+smoke.setAttribute("radius","0.08")
+smoke.setAttribute("color","#aaaaaa")
+smoke.setAttribute("opacity","0.4")
+
+const pos=tubeBElement.object3D.position
+
+smoke.setAttribute("position",{
+x:pos.x,
+y:pos.y+0.5,
+z:pos.z
+})
+
+smoke.setAttribute("animation",{
+property:"position",
+to:`${pos.x} ${pos.y+1.2} ${pos.z}`,
+dur:1500
+})
+
+document.querySelector("a-scene").appendChild(smoke)
+setTimeout(()=>smoke.remove(),1500)
 }
 
 function updateLiquidLevels(){
@@ -230,23 +297,19 @@ document.querySelector("#liquidB").setAttribute("position",`0 ${0.15+liquidLevel
 function mixLiquids(amount){
 
 if(currentExperiment==="neutralization"){
-
-if(amount<=0){
-setColor(BLUE,YELLOW)
-}
-else if(amount>=1){
-setColor(GREEN,GREEN)
-}
-else{
-blendColor(amount)
+if(amount<=0) setColor(BLUE,YELLOW)
+else if(amount>=1) setColor(GREEN,GREEN)
+else blendColor(amount)
 }
 
-}
 else if(currentExperiment==="precipitation"){
-if(amount>=0.5){
-setColor("#ffffff","#ffffff")
+if(amount>=0.5) setColor("#ffffff","#ffffff")
 }
+
+else if(currentExperiment==="exothermic"){
+if(amount>=0.5) setColor("#ff3300","#ff6600")
 }
+
 }
 
 function setColor(a,b){
@@ -268,15 +331,20 @@ currentExperiment=type
 resetExperiment()
 
 if(type==="neutralization"){
-document.getElementById("reactionName").innerText="Neutralization"
-document.getElementById("reactionEquation").innerText="HCl + NaOH → NaCl + H₂O"
-document.getElementById("reactionDesc").innerText="Acid + Base → Salt + Water"
+updateInfo("Neutralization","HCl + NaOH → NaCl + H₂O","Acid + Base → Salt + Water")
+}
+else if(type==="precipitation"){
+updateInfo("Precipitation","AgNO₃ + NaCl → AgCl ↓","Solid forms")
 }
 else{
-document.getElementById("reactionName").innerText="Precipitation"
-document.getElementById("reactionEquation").innerText="AgNO₃ + NaCl → AgCl ↓"
-document.getElementById("reactionDesc").innerText="Solid forms from solution"
+updateInfo("Exothermic","CaO + H₂O → Ca(OH)₂ + Heat","Heat released")
 }
+}
+
+function updateInfo(name,eq,desc){
+document.getElementById("reactionName").innerText=name
+document.getElementById("reactionEquation").innerText=eq
+document.getElementById("reactionDesc").innerText=desc
 }
 
 function togglePause(){
@@ -290,9 +358,8 @@ liquidLevelB=0.45
 pouredAmount=0
 reactionStarted=false
 
-if(pourInterval){
-clearInterval(pourInterval)
-}
+if(pourInterval) clearInterval(pourInterval)
+removeStream()
 
 updateLiquidLevels()
 mixLiquids(0)
@@ -312,9 +379,10 @@ document.getElementById("status").innerText="Scan markers"
 <select onchange="changeExperiment(this.value)">
 <option value="neutralization">Neutralization</option>
 <option value="precipitation">Precipitation</option>
+<option value="exothermic">Exothermic</option>
 </select>
 
-<button onclick="togglePause()">Pause/Resume</button>
+<button onclick="togglePause()">Pause</button>
 <button onclick="resetExperiment()">Reset</button>
 </div>
 
@@ -322,13 +390,10 @@ document.getElementById("status").innerText="Scan markers"
 <h3>Experiment Info</h3>
 <p id="reactionName">Neutralization</p>
 <p id="reactionEquation">HCl + NaOH → NaCl + H₂O</p>
-<p id="reactionDesc">Acid reacts with base</p>
+<p id="reactionDesc">Acid + Base → Salt + Water</p>
 </div>
 
 <div class="angle-display">0°</div>
-
-<audio id="pourSound" src="pour.mp3"></audio>
-<audio id="reactionSound" src="reaction.mp3"></audio>
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system>
 
