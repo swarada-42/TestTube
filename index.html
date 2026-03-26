@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Chemical Mixing - Ultimate Lab</title>
+<title>AR Chemical Mixing - Fixed</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
@@ -13,87 +13,47 @@ body{margin:0;overflow:hidden;font-family:Segoe UI;}
 .panel{
 position:absolute;
 background:rgba(0,0,0,0.6);
-backdrop-filter: blur(10px);
 color:white;
 padding:15px;
 border-radius:15px;
-box-shadow:0 0 20px rgba(0,0,0,0.3);
 }
 
 #hud{top:10px;left:10px;width:220px;}
-#eduPanel{bottom:10px;left:10px;width:240px;}
 #meters{top:10px;right:10px;width:220px;}
+
+.bar{height:10px;background:#444;border-radius:10px;}
+.fill{height:100%;width:50%;background:lime;}
 
 #label{
 position:absolute;
 top:80px;
 left:50%;
 transform:translateX(-50%);
+background:black;
 color:white;
-background:rgba(0,0,0,0.8);
 padding:10px 20px;
 border-radius:20px;
-font-size:18px;
 display:none;
-}
-
-select,button{
-width:100%;
-margin-top:8px;
-padding:8px;
-border:none;
-border-radius:8px;
-background:#1e90ff;
-color:white;
-cursor:pointer;
-}
-
-.bar{
-height:10px;
-background:#444;
-border-radius:10px;
-overflow:hidden;
-}
-
-.fill{
-height:100%;
-width:50%;
-background:lime;
-transition:width 0.3s;
 }
 </style>
 
 <script>
 
-let tubeAElement=null
-let tubeBElement=null
-
-let liquidLevelA=0.45
-let liquidLevelB=0.45
-
+let tubeAElement, tubeBElement
+let liquidLevelA=0.45, liquidLevelB=0.45
 let pouredAmount=0
 let reactionStarted=false
-let reactionComplete=false
-
 let currentExperiment="neutralization"
-let pourInterval=null
-let currentMixAmount=0
-
-let temperature=25
-let phValue=7
-
-const REQUIRED_TILT=40
-const REQUIRED_DISTANCE=1.5
+let interval=null
+let temperature=25, ph=7
 
 document.addEventListener("DOMContentLoaded",()=>{
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
 })
 
-// 🎤 VOICE
 function speak(text){
-const speech = new SpeechSynthesisUtterance(text)
-speechSynthesis.speak(speech)
+speechSynthesis.speak(new SpeechSynthesisUtterance(text))
 }
 
 AFRAME.registerComponent("pour-system",{
@@ -118,8 +78,7 @@ tubeAElement.object3D.localToWorld(tipA)
 const topB=new THREE.Vector3(0,0.6,0)
 tubeBElement.object3D.localToWorld(topB)
 
-if(dist<REQUIRED_DISTANCE && tilt>REQUIRED_TILT && tipA.y>topB.y && !reactionStarted){
-
+if(dist<1.5 && tilt>40 && tipA.y>topB.y && !reactionStarted){
 reactionStarted=true
 
 document.getElementById("label").style.display="block"
@@ -132,24 +91,16 @@ startPouring()
 }
 })
 
-// 🚀 POUR
 function startPouring(){
 
 let count=0
 
-pourInterval=setInterval(()=>{
+interval=setInterval(()=>{
 
 if(count>=40){
-clearInterval(pourInterval)
-removeStream()
-
-reactionComplete=true
-applyFinalColor()
-
+clearInterval(interval)
 document.getElementById("label").innerText="Reaction Complete ✅"
-
-speak("Reaction completed")
-
+applyFinalColor()
 return
 }
 
@@ -160,36 +111,20 @@ pouredAmount+=0.01
 updateLiquidLevels()
 createStream()
 
-if(pouredAmount>0.1) createColorDiffusion()
-
-mixLiquids(pouredAmount/0.35)
+if(currentExperiment==="neutralization") createBubbles()
+if(currentExperiment==="precipitation") createFoam()
+if(currentExperiment==="exothermic") createSmoke()
 
 updateTemperature()
 updatePH()
-
-if(currentExperiment==="neutralization") createBubbles()
-if(currentExperiment==="precipitation") createFoam()
-if(currentExperiment==="exothermic"){
-createSmoke()
-createHeatGlow()
-}
 
 count++
 
 },50)
 }
 
-// 🌊 STREAM
 function createStream(){
-
-const posA=new THREE.Vector3()
-const posB=new THREE.Vector3()
-
-tubeAElement.object3D.getWorldPosition(posA)
-tubeBElement.object3D.getWorldPosition(posB)
-
 let s=document.querySelector("#stream")
-
 if(!s){
 s=document.createElement("a-cylinder")
 s.setAttribute("id","stream")
@@ -197,87 +132,87 @@ s.setAttribute("radius","0.03")
 s.setAttribute("color","#00ccff")
 document.querySelector("a-scene").appendChild(s)
 }
-
-const midX=(posA.x+posB.x)/2
-const midY=(posA.y+posB.y)/2
-const midZ=(posA.z+posB.z)/2
-
-const dist=posA.distanceTo(posB)
-
-s.setAttribute("position",{x:midX,y:midY,z:midZ})
-s.setAttribute("height",dist)
-s.object3D.lookAt(posB)
 }
 
-function removeStream(){
-const s=document.querySelector("#stream")
-if(s) s.remove()
+function updateLiquidLevels(){
+document.querySelector("#liquidA").setAttribute("height",liquidLevelA)
+document.querySelector("#liquidB").setAttribute("height",liquidLevelB)
 }
 
-// 🎨 DIFFUSION
-function createColorDiffusion(){
-for(let i=0;i<6;i++){
-const p=document.createElement("a-sphere")
-p.setAttribute("radius",0.015)
-p.setAttribute("color","#00cc66")
-
-const pos=new THREE.Vector3()
-tubeBElement.object3D.getWorldPosition(pos)
-
-p.setAttribute("position",{x:pos.x,y:pos.y+0.2,z:pos.z})
-
-document.querySelector("a-scene").appendChild(p)
-setTimeout(()=>p.remove(),1500)
-}
-}
-
-// 🎨 MIX
-function mixLiquids(amount){
-
-currentMixAmount += (amount - currentMixAmount)*0.1
-
-const color=`rgb(${200*currentMixAmount},${100+155*currentMixAmount},${100})`
-setColor(color,color)
-}
-
-function setColor(a,b){
-document.querySelector("#liquidA").setAttribute("color",a)
-document.querySelector("#liquidB").setAttribute("color",b)
-}
-
-// 🎯 FINAL COLOR
 function applyFinalColor(){
+let color="#00cc66"
+if(currentExperiment==="precipitation") color="#ffffff"
+if(currentExperiment==="exothermic") color="#ff3300"
+setColor(color)
+}
 
-let c="#00cc66"
-if(currentExperiment==="precipitation") c="#ffffff"
-if(currentExperiment==="exothermic") c="#ff3300"
+function setColor(c){
+document.querySelector("#liquidA").setAttribute("color",c)
+document.querySelector("#liquidB").setAttribute("color",c)
+}
 
-setColor(c,c)
+// ✅ REAL EFFECTS (FIXED)
+
+function createBubbles(){
+const b=document.createElement("a-sphere")
+b.setAttribute("radius","0.02")
+b.setAttribute("color","#aeefff")
+b.setAttribute("position","0 1 0")
+document.querySelector("a-scene").appendChild(b)
+setTimeout(()=>b.remove(),1000)
+}
+
+function createFoam(){
+const f=document.createElement("a-sphere")
+f.setAttribute("radius","0.03")
+f.setAttribute("color","#ffffff")
+f.setAttribute("position","0 1 0")
+document.querySelector("a-scene").appendChild(f)
+setTimeout(()=>f.remove(),1000)
+}
+
+function createSmoke(){
+const s=document.createElement("a-sphere")
+s.setAttribute("radius","0.08")
+s.setAttribute("color","#888")
+s.setAttribute("position","0 1 0")
+document.querySelector("a-scene").appendChild(s)
+setTimeout(()=>s.remove(),1500)
 }
 
 // 🌡️ TEMP
 function updateTemperature(){
-if(currentExperiment==="exothermic") temperature+=0.5
+if(currentExperiment==="exothermic") temperature+=1
+document.getElementById("tempText").innerText=temperature+"°C"
 document.getElementById("tempFill").style.width=temperature+"%"
-document.getElementById("tempText").innerText=Math.round(temperature)+"°C"
 }
 
 // 🧪 PH
 function updatePH(){
-phValue += (7-phValue)*0.1
-document.getElementById("phFill").style.width=(phValue/14)*100+"%"
-document.getElementById("phText").innerText=phValue.toFixed(1)
+ph += (7-ph)*0.1
+document.getElementById("phText").innerText=ph.toFixed(1)
+document.getElementById("phFill").style.width=(ph/14)*100+"%"
 }
 
-// EFFECTS (same as before)
-function createBubbles(){/* simplified */}
-function createFoam(){/* simplified */}
-function createSmoke(){/* simplified */}
-function createHeatGlow(){}
+// ✅ FIXED DROPDOWN
+function changeExperiment(value){
+currentExperiment=value
+resetExperiment()
+}
 
 // RESET
 function resetExperiment(){
-location.reload()
+liquidLevelA=0.45
+liquidLevelB=0.45
+reactionStarted=false
+pouredAmount=0
+temperature=25
+ph=7
+
+clearInterval(interval)
+
+document.getElementById("label").style.display="none"
+updateLiquidLevels()
 }
 
 </script>
@@ -287,7 +222,7 @@ location.reload()
 
 <div id="hud" class="panel">
 <h3>AR Lab</h3>
-<select onchange="currentExperiment=this.value; resetExperiment()">
+<select onchange="changeExperiment(this.value)">
 <option value="neutralization">Neutralization</option>
 <option value="precipitation">Precipitation</option>
 <option value="exothermic">Exothermic</option>
@@ -296,14 +231,11 @@ location.reload()
 </div>
 
 <div id="meters" class="panel">
-<h3>Live Data</h3>
-<p>🌡️ Temperature</p>
+<p>🌡️ <span id="tempText">25°C</span></p>
 <div class="bar"><div id="tempFill" class="fill"></div></div>
-<p id="tempText">25°C</p>
 
-<p>🧪 pH</p>
+<p>🧪 <span id="phText">7</span></p>
 <div class="bar"><div id="phFill" class="fill"></div></div>
-<p id="phText">7</p>
 </div>
 
 <div id="label">Reaction</div>
@@ -325,7 +257,6 @@ location.reload()
 </a-marker>
 
 <a-entity camera></a-entity>
-
 </a-scene>
 
 </body>
