@@ -15,12 +15,10 @@ font-family:'Comic Sans MS', cursive;
 background:linear-gradient(135deg,#ffecd2,#fcb69f);
 }
 
-/* Panels */
 .card{
 position:absolute;
-background:rgba(255,255,255,0.25);
+background:rgba(255,255,255,0.3);
 backdrop-filter: blur(10px);
-color:#333;
 padding:15px;
 border-radius:20px;
 z-index:9999;
@@ -39,9 +37,9 @@ padding:10px 20px;
 border-radius:30px;
 display:none;
 z-index:9999;
+font-weight:bold;
 }
 
-/* Scientist */
 #scientist{
 position:absolute;
 bottom:20px;
@@ -57,7 +55,6 @@ z-index:9999;
 100%{transform:translateY(0)}
 }
 
-/* Speech */
 #speech{
 position:absolute;
 bottom:100px;
@@ -69,7 +66,6 @@ display:none;
 z-index:9999;
 }
 
-/* Inputs */
 select,button{
 width:100%;
 margin-top:10px;
@@ -82,8 +78,6 @@ border-radius:10px;
 <script>
 
 let tubeAElement, tubeBElement
-let liquidLevelA=0.45, liquidLevelB=0.45
-let pouredAmount=0
 let reactionStarted=false
 let currentExperiment="neutralization"
 let interval=null
@@ -95,14 +89,15 @@ document.addEventListener("DOMContentLoaded",()=>{
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
 
-// ✅ FIXED DROPDOWN
 document.getElementById("experimentSelect").addEventListener("change",(e)=>{
 currentExperiment=e.target.value
 resetExperiment()
 })
 })
 
-function speak(t){ speechSynthesis.speak(new SpeechSynthesisUtterance(t)) }
+function speak(t){
+speechSynthesis.speak(new SpeechSynthesisUtterance(t))
+}
 
 function showSpeech(text){
 const s=document.getElementById("speech")
@@ -122,7 +117,10 @@ if(!A.object3D.visible || !B.object3D.visible) return
 const tilt=Math.abs(A.object3D.rotation.x*(180/Math.PI))
 tubeAElement.setAttribute("rotation",`-${tilt} 0 0`)
 
-const dist=A.object3D.position.distanceTo(B.object3D.position)
+const posA=A.object3D.getWorldPosition(new THREE.Vector3())
+const posB=B.object3D.getWorldPosition(new THREE.Vector3())
+
+const dist=posA.distanceTo(posB)
 
 const tipA=new THREE.Vector3(0,0.6,0)
 tubeAElement.object3D.localToWorld(tipA)
@@ -254,12 +252,22 @@ document.getElementById("scientist").innerText="👨‍🔬"
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system style="pointer-events:none;">
 
+<a-light type="ambient" intensity="1"></a-light>
+
+<!-- Tube A -->
 <a-marker id="markerA" type="pattern" url="markers/testtube_markerA.patt">
-<a-entity id="tubeA"></a-entity>
+<a-entity id="tubeA">
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
+<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0066cc"></a-cylinder>
+</a-entity>
 </a-marker>
 
+<!-- Tube B -->
 <a-marker id="markerB" type="pattern" url="markers/testtube_markerB.patt">
-<a-entity id="tubeB"></a-entity>
+<a-entity id="tubeB">
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
+<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffaa00"></a-cylinder>
+</a-entity>
 </a-marker>
 
 <a-entity camera></a-entity>
