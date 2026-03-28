@@ -15,119 +15,72 @@ font-family:'Comic Sans MS', cursive;
 background:linear-gradient(135deg,#ffecd2,#fcb69f);
 }
 
-/* UI Cards */
 .card{
 position:absolute;
 background:rgba(255,255,255,0.25);
-backdrop-filter: blur(10px);
-color:#333;
 padding:15px;
 border-radius:20px;
-box-shadow:0 10px 25px rgba(0,0,0,0.2);
-border:2px solid #fff;
+z-index:9999;
 }
 
-/* Panels */
 #hud{top:15px;left:15px;width:240px;}
 #eduPanel{bottom:15px;left:15px;width:260px;}
 
-/* Label */
 #label{
 position:absolute;
 top:80px;
 left:50%;
 transform:translateX(-50%);
-background:linear-gradient(45deg,#ff9a9e,#fad0c4);
-color:#333;
-padding:12px 25px;
-border-radius:50px;
-font-size:20px;
-font-weight:bold;
+background:#ff9a9e;
+padding:10px 20px;
+border-radius:30px;
 display:none;
-}
-
-/* Fix click issue */
-#hud, #eduPanel, #label{
 z-index:9999;
-pointer-events:auto;
-}
-
-/* Buttons */
-button{
-width:100%;
-margin-top:10px;
-padding:10px;
-border:none;
-border-radius:15px;
-background:linear-gradient(45deg,#43e97b,#38f9d7);
 font-weight:bold;
-cursor:pointer;
 }
 
-select{
-width:100%;
-padding:10px;
-border-radius:15px;
-margin-top:10px;
-border:none;
+#hud, #eduPanel, #label{
+pointer-events:auto;
 }
 </style>
 
 <script>
 
-let tubeAElement=null
-let tubeBElement=null
-
-let liquidLevelA=0.45
-let liquidLevelB=0.45
-
-let pouredAmount=0
+let tubeAElement, tubeBElement
 let reactionStarted=false
-let reactionComplete=false
-
 let currentExperiment="neutralization"
-let pourInterval=null
-let currentMixAmount=0
-
-const REQUIRED_TILT=40
-const REQUIRED_DISTANCE=1.5
+let interval=null
 
 const bubbleSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_115b9b33e1.mp3")
 const fizzSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_8b8dbe6f90.mp3")
 
 document.addEventListener("DOMContentLoaded",()=>{
-
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
 
-// ✅ DROPDOWN FIX
 document.getElementById("experimentSelect").addEventListener("change",(e)=>{
-currentExperiment = e.target.value
+currentExperiment=e.target.value
 resetExperiment()
 })
-
 })
 
-// 🎤 VOICE
-function speak(text){
-const speech = new SpeechSynthesisUtterance(text)
-speech.rate = 0.9
-speechSynthesis.speak(speech)
+function speak(t){
+speechSynthesis.speak(new SpeechSynthesisUtterance(t))
 }
 
 AFRAME.registerComponent("pour-system",{
 tick:function(){
 
-const markerA=document.querySelector("#markerA")
-const markerB=document.querySelector("#markerB")
+const A=document.querySelector("#markerA")
+const B=document.querySelector("#markerB")
 
-if(!markerA.object3D.visible || !markerB.object3D.visible) return
+if(!A.object3D.visible || !B.object3D.visible) return
 
-const tilt=Math.abs(markerA.object3D.rotation.x*(180/Math.PI))
+const tilt=Math.abs(A.object3D.rotation.x*(180/Math.PI))
 tubeAElement.setAttribute("rotation",`-${tilt} 0 0`)
 
-const posA=markerA.object3D.getWorldPosition(new THREE.Vector3())
-const posB=markerB.object3D.getWorldPosition(new THREE.Vector3())
+const posA=A.object3D.getWorldPosition(new THREE.Vector3())
+const posB=B.object3D.getWorldPosition(new THREE.Vector3())
 
 const dist=posA.distanceTo(posB)
 
@@ -137,14 +90,13 @@ tubeAElement.object3D.localToWorld(tipA)
 const topB=new THREE.Vector3(0,0.6,0)
 tubeBElement.object3D.localToWorld(topB)
 
-if(dist<REQUIRED_DISTANCE && tilt>REQUIRED_TILT && tipA.y>topB.y && !reactionStarted){
+// relaxed but same logic
+if(dist<2.5 && tilt>20 && tipA.y>topB.y && !reactionStarted){
 
 reactionStarted=true
 
 document.getElementById("label").style.display="block"
 document.getElementById("label").innerText="🧪 Mixing Started!"
-
-speak("Experiment started")
 
 bubbleSound.play()
 
@@ -158,60 +110,58 @@ function startPouring(){
 
 let count=0
 
-pourInterval=setInterval(()=>{
+interval=setInterval(()=>{
 
 if(count>=40){
-clearInterval(pourInterval)
+clearInterval(interval)
 removeStream()
 
-reactionComplete=true
-applyFinalColor()
-
 document.getElementById("label").innerText="🎉 Reaction Complete!"
-
-speak("Reaction completed")
 fizzSound.play()
-
 return
 }
 
-liquidLevelA-=0.01
-liquidLevelB+=0.01
-pouredAmount+=0.01
-
-updateLiquidLevels()
+// 🌊 stream
 createStream()
 
-mixLiquids(pouredAmount/0.35)
-
-if(currentExperiment==="neutralization"){
-createBubbles()
-bubbleSound.play()
-}
-if(currentExperiment==="precipitation"){
-createFoam()
-bubbleSound.play()
-}
-if(currentExperiment==="exothermic"){
-createSmoke()
-fizzSound.play()
-}
+// 🎯 effects at correct position
+if(currentExperiment==="neutralization") createBubbles()
+if(currentExperiment==="precipitation") createFoam()
+if(currentExperiment==="exothermic") createSmoke()
 
 count++
 
 },100)
 }
 
-// 🌊 STREAM
+// 🌊 STREAM BETWEEN TUBES
 function createStream(){
+
+const posA = new THREE.Vector3()
+const posB = new THREE.Vector3()
+
+tubeAElement.object3D.getWorldPosition(posA)
+tubeBElement.object3D.getWorldPosition(posB)
+
 let s=document.querySelector("#stream")
+
 if(!s){
 s=document.createElement("a-cylinder")
 s.setAttribute("id","stream")
-s.setAttribute("radius","0.03")
+s.setAttribute("radius","0.02")
 s.setAttribute("color","#00ccff")
 document.querySelector("a-scene").appendChild(s)
 }
+
+const midX=(posA.x+posB.x)/2
+const midY=(posA.y+posB.y)/2
+const midZ=(posA.z+posB.z)/2
+
+const dist=posA.distanceTo(posB)
+
+s.setAttribute("position",{x:midX,y:midY,z:midZ})
+s.setAttribute("height",dist)
+s.object3D.lookAt(posB)
 }
 
 function removeStream(){
@@ -219,84 +169,73 @@ const s=document.querySelector("#stream")
 if(s) s.remove()
 }
 
-// 🎨 MIXING
-function mixLiquids(amount){
-
-currentMixAmount += (amount - currentMixAmount)*0.1
-
-let color="#00ccff"
-
-if(currentExperiment==="neutralization"){
-color=`rgb(${200*currentMixAmount},150,100)`
-}
-if(currentExperiment==="precipitation"){
-if(currentMixAmount>0.5) color="#ffffff"
-}
-if(currentExperiment==="exothermic"){
-color=`rgb(${255*currentMixAmount},80,0)`
-}
-
-setColor(color,color)
-}
-
-function setColor(a,b){
-document.querySelector("#liquidA").setAttribute("color",a)
-document.querySelector("#liquidB").setAttribute("color",b)
-}
-
-// 🎯 FINAL COLOR
-function applyFinalColor(){
-let c="#00cc66"
-if(currentExperiment==="precipitation") c="#ffffff"
-if(currentExperiment==="exothermic") c="#ff3300"
-setColor(c,c)
-}
-
-// EFFECTS
+// 🫧 BUBBLES (FIXED POSITION)
 function createBubbles(){
+
+const pos = new THREE.Vector3()
+tubeBElement.object3D.getWorldPosition(pos)
+
 const b=document.createElement("a-sphere")
 b.setAttribute("radius","0.02")
 b.setAttribute("color","#aeefff")
-b.setAttribute("position","0 1 0")
+
+b.setAttribute("position",{
+x:pos.x,
+y:pos.y+0.2,
+z:pos.z
+})
+
 document.querySelector("a-scene").appendChild(b)
 setTimeout(()=>b.remove(),1000)
 }
 
+// 🧼 FOAM
 function createFoam(){
+
+const pos = new THREE.Vector3()
+tubeBElement.object3D.getWorldPosition(pos)
+
 const f=document.createElement("a-sphere")
 f.setAttribute("radius","0.03")
-f.setAttribute("color","#fff")
-f.setAttribute("position","0 1 0")
+f.setAttribute("color","#ffffff")
+
+f.setAttribute("position",{
+x:pos.x,
+y:pos.y+0.3,
+z:pos.z
+})
+
 document.querySelector("a-scene").appendChild(f)
 setTimeout(()=>f.remove(),1000)
 }
 
+// ☁️ SMOKE
 function createSmoke(){
+
+const pos = new THREE.Vector3()
+tubeBElement.object3D.getWorldPosition(pos)
+
 const s=document.createElement("a-sphere")
 s.setAttribute("radius","0.08")
 s.setAttribute("color","#888")
-s.setAttribute("position","0 1 0")
+s.setAttribute("opacity","0.5")
+
+s.setAttribute("position",{
+x:pos.x,
+y:pos.y+0.4,
+z:pos.z
+})
+
 document.querySelector("a-scene").appendChild(s)
 setTimeout(()=>s.remove(),1500)
 }
 
 // RESET
 function resetExperiment(){
-
-liquidLevelA=0.45
-liquidLevelB=0.45
-pouredAmount=0
 reactionStarted=false
-reactionComplete=false
-currentMixAmount=0
-
-if(pourInterval) clearInterval(pourInterval)
-
-removeStream()
-
+clearInterval(interval)
 document.getElementById("label").style.display="none"
-
-updateLiquidLevels()
+removeStream()
 }
 
 </script>
@@ -313,33 +252,35 @@ updateLiquidLevels()
 <option value="exothermic">🔴 Exothermic</option>
 </select>
 
-<button onclick="resetExperiment()">🔄 Reset Experiment</button>
+<button onclick="resetExperiment()">🔄 Reset</button>
 </div>
 
 <div id="label">Reaction</div>
 
 <div id="eduPanel" class="card">
 <h3>🧪 Learn</h3>
-<p>🟢 Safe reaction (Salt + Water)</p>
-<p>⚪ Solid formation</p>
-<p>🔴 Heat reaction 🔥</p>
+<p>🟢 Safe reaction</p>
+<p>⚪ Solid forms</p>
+<p>🔴 Heat reaction</p>
 </div>
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system style="pointer-events:none;">
 
-<a-light type="ambient" intensity="0.8"></a-light>
+<a-light type="ambient" intensity="1"></a-light>
 
+<!-- Tube A -->
 <a-marker id="markerA" type="pattern" url="markers/testtube_markerA.patt">
 <a-entity id="tubeA">
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.5"></a-cylinder>
-<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0"></a-cylinder>
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
+<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0066cc"></a-cylinder>
 </a-entity>
 </a-marker>
 
+<!-- Tube B -->
 <a-marker id="markerB" type="pattern" url="markers/testtube_markerB.patt">
 <a-entity id="tubeB">
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.5"></a-cylinder>
-<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0"></a-cylinder>
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
+<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffaa00"></a-cylinder>
 </a-entity>
 </a-marker>
 
