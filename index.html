@@ -15,120 +15,111 @@ font-family:'Comic Sans MS', cursive;
 background:linear-gradient(135deg,#ffecd2,#fcb69f);
 }
 
+/* Cartoon Card */
 .card{
 position:absolute;
-background:rgba(255,255,255,0.3);
+background:rgba(255,255,255,0.25);
+backdrop-filter: blur(10px);
+color:#333;
 padding:15px;
 border-radius:20px;
-z-index:9999;
+box-shadow:0 10px 25px rgba(0,0,0,0.2);
+border:2px solid #fff;
 }
 
+/* Panels */
 #hud{top:15px;left:15px;width:240px;}
 #eduPanel{bottom:15px;left:15px;width:260px;}
 
+/* Label */
 #label{
 position:absolute;
 top:80px;
 left:50%;
 transform:translateX(-50%);
-background:#ff9a9e;
-padding:10px 20px;
-border-radius:30px;
-display:none;
-z-index:9999;
+background:linear-gradient(45deg,#ff9a9e,#fad0c4);
+color:#333;
+padding:12px 25px;
+border-radius:50px;
+font-size:20px;
 font-weight:bold;
-}
-
-#scientist{
-position:absolute;
-bottom:20px;
-right:20px;
-font-size:60px;
-animation:float 2s infinite;
-z-index:9999;
-}
-
-@keyframes float{
-0%{transform:translateY(0)}
-50%{transform:translateY(-10px)}
-100%{transform:translateY(0)}
-}
-
-#speech{
-position:absolute;
-bottom:100px;
-right:20px;
-background:white;
-padding:8px 12px;
-border-radius:10px;
 display:none;
-z-index:9999;
+box-shadow:0 5px 15px rgba(0,0,0,0.3);
 }
 
-#debug{
-position:absolute;
-top:10px;
-right:10px;
-background:black;
-color:#00ffcc;
-padding:10px;
-font-size:14px;
-z-index:9999;
-}
-
-select,button{
+/* Buttons */
+button{
 width:100%;
 margin-top:10px;
 padding:10px;
 border:none;
-border-radius:10px;
+border-radius:15px;
+background:linear-gradient(45deg,#43e97b,#38f9d7);
+color:#000;
+font-weight:bold;
+cursor:pointer;
 }
+
+select{
+width:100%;
+padding:10px;
+border-radius:15px;
+margin-top:10px;
+border:none;
+}
+
+h3{margin:0 0 10px;}
+p{margin:5px 0;}
 </style>
 
 <script>
 
-let tubeAElement, tubeBElement
-let reactionStarted=false
-let currentExperiment="neutralization"
-let interval=null
+let tubeAElement=null
+let tubeBElement=null
 
+let liquidLevelA=0.45
+let liquidLevelB=0.45
+
+let pouredAmount=0
+let reactionStarted=false
+let reactionComplete=false
+
+let currentExperiment="neutralization"
+let pourInterval=null
+let currentMixAmount=0
+
+const REQUIRED_TILT=40
+const REQUIRED_DISTANCE=1.5
+
+// 🔊 SOUND FILES (free online sounds)
 const bubbleSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_115b9b33e1.mp3")
 const fizzSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_8b8dbe6f90.mp3")
 
 document.addEventListener("DOMContentLoaded",()=>{
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
-
-document.getElementById("experimentSelect").addEventListener("change",(e)=>{
-currentExperiment=e.target.value
-resetExperiment()
-})
 })
 
-function speak(t){
-speechSynthesis.speak(new SpeechSynthesisUtterance(t))
-}
-
-function showSpeech(text){
-const s=document.getElementById("speech")
-s.innerText=text
-s.style.display="block"
-setTimeout(()=>s.style.display="none",2000)
+// 🎤 VOICE
+function speak(text){
+const speech = new SpeechSynthesisUtterance(text)
+speech.rate = 0.9
+speechSynthesis.speak(speech)
 }
 
 AFRAME.registerComponent("pour-system",{
 tick:function(){
 
-const A=document.querySelector("#markerA")
-const B=document.querySelector("#markerB")
+const markerA=document.querySelector("#markerA")
+const markerB=document.querySelector("#markerB")
 
-if(!A.object3D.visible || !B.object3D.visible) return
+if(!markerA.object3D.visible || !markerB.object3D.visible) return
 
-const tilt=Math.abs(A.object3D.rotation.x*(180/Math.PI))
+const tilt=Math.abs(markerA.object3D.rotation.x*(180/Math.PI))
 tubeAElement.setAttribute("rotation",`-${tilt} 0 0`)
 
-const posA=A.object3D.getWorldPosition(new THREE.Vector3())
-const posB=B.object3D.getWorldPosition(new THREE.Vector3())
+const posA=markerA.object3D.getWorldPosition(new THREE.Vector3())
+const posB=markerB.object3D.getWorldPosition(new THREE.Vector3())
 
 const dist=posA.distanceTo(posB)
 
@@ -138,25 +129,16 @@ tubeAElement.object3D.localToWorld(tipA)
 const topB=new THREE.Vector3(0,0.6,0)
 tubeBElement.object3D.localToWorld(topB)
 
-// DEBUG DISPLAY
-document.getElementById("debug").innerHTML =
-"Dist: " + dist.toFixed(2) + "<br>" +
-"Tilt: " + tilt.toFixed(1) + "<br>" +
-"Above: " + (tipA.y > topB.y)
-
-// ✅ REALISTIC CONDITION (FIXED)
-if(dist<2.5 && tilt>20 && tipA.y>topB.y && !reactionStarted){
+if(dist<REQUIRED_DISTANCE && tilt>REQUIRED_TILT && tipA.y>topB.y && !reactionStarted){
 
 reactionStarted=true
 
 document.getElementById("label").style.display="block"
 document.getElementById("label").innerText="🧪 Mixing Started!"
 
-document.getElementById("scientist").innerText="🧑‍🔬⚗️"
-
-showSpeech("Let's mix chemicals!")
 speak("Experiment started")
 
+// 🔊 play sound
 bubbleSound.play()
 
 startPouring()
@@ -164,35 +146,60 @@ startPouring()
 }
 })
 
+// 🚀 POUR
 function startPouring(){
 
 let count=0
 
-interval=setInterval(()=>{
+pourInterval=setInterval(()=>{
 
 if(count>=40){
-clearInterval(interval)
+clearInterval(pourInterval)
+removeStream()
 
-document.getElementById("label").innerText="🎉 Done!"
-document.getElementById("scientist").innerText="🎉🧑‍🔬"
+reactionComplete=true
+applyFinalColor()
 
-showSpeech("Reaction complete!")
+document.getElementById("label").innerText="🎉 Reaction Complete!"
+
+speak("Reaction completed")
+
+// 🔊 finish sound
 fizzSound.play()
 
 return
 }
 
+liquidLevelA-=0.01
+liquidLevelB+=0.01
+pouredAmount+=0.01
+
+updateLiquidLevels()
 createStream()
 
-if(currentExperiment==="neutralization") createBubbles()
-if(currentExperiment==="precipitation") createFoam()
-if(currentExperiment==="exothermic") createSmoke()
+mixLiquids(pouredAmount/0.35)
+
+// effects + sound
+if(currentExperiment==="neutralization"){
+createBubbles()
+bubbleSound.play()
+}
+if(currentExperiment==="precipitation"){
+createFoam()
+bubbleSound.play()
+}
+if(currentExperiment==="exothermic"){
+createSmoke()
+createHeatGlow()
+fizzSound.play()
+}
 
 count++
 
 },100)
 }
 
+// 🌊 STREAM
 function createStream(){
 let s=document.querySelector("#stream")
 if(!s){
@@ -204,6 +211,47 @@ document.querySelector("a-scene").appendChild(s)
 }
 }
 
+function removeStream(){
+const s=document.querySelector("#stream")
+if(s) s.remove()
+}
+
+// 🎨 MIXING
+function mixLiquids(amount){
+
+currentMixAmount += (amount - currentMixAmount)*0.1
+
+let color="#00ccff"
+
+if(currentExperiment==="neutralization"){
+color=`rgb(${200*currentMixAmount},${150},${100})`
+}
+if(currentExperiment==="precipitation"){
+if(currentMixAmount>0.5) color="#ffffff"
+}
+if(currentExperiment==="exothermic"){
+color=`rgb(${255*currentMixAmount},${80},0)`
+}
+
+setColor(color,color)
+}
+
+function setColor(a,b){
+document.querySelector("#liquidA").setAttribute("color",a)
+document.querySelector("#liquidB").setAttribute("color",b)
+}
+
+// 🎯 FINAL COLOR
+function applyFinalColor(){
+
+let c="#00cc66"
+if(currentExperiment==="precipitation") c="#ffffff"
+if(currentExperiment==="exothermic") c="#ff3300"
+
+setColor(c,c)
+}
+
+// 🫧 EFFECTS
 function createBubbles(){
 const b=document.createElement("a-sphere")
 b.setAttribute("radius","0.02")
@@ -231,11 +279,37 @@ document.querySelector("a-scene").appendChild(s)
 setTimeout(()=>s.remove(),1500)
 }
 
+function createHeatGlow(){}
+
+// 🔄 LEVEL
+function updateLiquidLevels(){
+document.querySelector("#liquidA").setAttribute("height",liquidLevelA)
+document.querySelector("#liquidB").setAttribute("height",liquidLevelB)
+}
+
+// 🔄 DROPDOWN FIX
+function changeExperiment(val){
+currentExperiment=val
+resetExperiment()
+}
+
+// 🔄 RESET
 function resetExperiment(){
+
+liquidLevelA=0.45
+liquidLevelB=0.45
+pouredAmount=0
 reactionStarted=false
-clearInterval(interval)
+reactionComplete=false
+currentMixAmount=0
+
+if(pourInterval) clearInterval(pourInterval)
+
+removeStream()
+
 document.getElementById("label").style.display="none"
-document.getElementById("scientist").innerText="👨‍🔬"
+
+updateLiquidLevels()
 }
 
 </script>
@@ -244,46 +318,41 @@ document.getElementById("scientist").innerText="👨‍🔬"
 <body>
 
 <div id="hud" class="card">
-<h3>🧑‍🔬 Fun Lab</h3>
+<h3>🧑‍🔬 Fun Chemistry Lab</h3>
 
-<select id="experimentSelect">
+<select onchange="changeExperiment(this.value)">
 <option value="neutralization">🟢 Neutralization</option>
 <option value="precipitation">⚪ Precipitation</option>
 <option value="exothermic">🔴 Exothermic</option>
 </select>
 
-<button onclick="resetExperiment()">Reset</button>
+<button onclick="resetExperiment()">🔄 Reset Experiment</button>
 </div>
 
 <div id="label">Reaction</div>
 
 <div id="eduPanel" class="card">
 <h3>🧪 Learn</h3>
-<p>🟢 Safe reaction</p>
-<p>⚪ Solid forms</p>
-<p>🔴 Heat reaction</p>
+<p>🟢 Safe reaction (Salt + Water)</p>
+<p>⚪ Solid formation</p>
+<p>🔴 Heat reaction 🔥</p>
 </div>
 
-<div id="scientist">👨‍🔬</div>
-<div id="speech">Hello!</div>
+<a-scene embedded arjs="debugUIEnabled:false" pour-system>
 
-<div id="debug">Debug</div>
-
-<a-scene embedded arjs="debugUIEnabled:false" pour-system style="pointer-events:none;">
-
-<a-light type="ambient" intensity="1"></a-light>
+<a-light type="ambient" intensity="0.8"></a-light>
 
 <a-marker id="markerA" type="pattern" url="markers/testtube_markerA.patt">
 <a-entity id="tubeA">
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
-<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0066cc"></a-cylinder>
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.5"></a-cylinder>
+<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0"></a-cylinder>
 </a-entity>
 </a-marker>
 
 <a-marker id="markerB" type="pattern" url="markers/testtube_markerB.patt">
 <a-entity id="tubeB">
-<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
-<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffaa00"></a-cylinder>
+<a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.5"></a-cylinder>
+<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0"></a-cylinder>
 </a-entity>
 </a-marker>
 
