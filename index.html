@@ -15,7 +15,7 @@ font-family:'Comic Sans MS', cursive;
 background:linear-gradient(135deg,#ffecd2,#fcb69f);
 }
 
-/* Cartoon Card */
+/* UI Cards */
 .card{
 position:absolute;
 background:rgba(255,255,255,0.25);
@@ -44,7 +44,12 @@ border-radius:50px;
 font-size:20px;
 font-weight:bold;
 display:none;
-box-shadow:0 5px 15px rgba(0,0,0,0.3);
+}
+
+/* Fix click issue */
+#hud, #eduPanel, #label{
+z-index:9999;
+pointer-events:auto;
 }
 
 /* Buttons */
@@ -55,7 +60,6 @@ padding:10px;
 border:none;
 border-radius:15px;
 background:linear-gradient(45deg,#43e97b,#38f9d7);
-color:#000;
 font-weight:bold;
 cursor:pointer;
 }
@@ -67,9 +71,6 @@ border-radius:15px;
 margin-top:10px;
 border:none;
 }
-
-h3{margin:0 0 10px;}
-p{margin:5px 0;}
 </style>
 
 <script>
@@ -91,13 +92,20 @@ let currentMixAmount=0
 const REQUIRED_TILT=40
 const REQUIRED_DISTANCE=1.5
 
-// 🔊 SOUND FILES (free online sounds)
 const bubbleSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_115b9b33e1.mp3")
 const fizzSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_8b8dbe6f90.mp3")
 
 document.addEventListener("DOMContentLoaded",()=>{
+
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
+
+// ✅ DROPDOWN FIX
+document.getElementById("experimentSelect").addEventListener("change",(e)=>{
+currentExperiment = e.target.value
+resetExperiment()
+})
+
 })
 
 // 🎤 VOICE
@@ -138,7 +146,6 @@ document.getElementById("label").innerText="🧪 Mixing Started!"
 
 speak("Experiment started")
 
-// 🔊 play sound
 bubbleSound.play()
 
 startPouring()
@@ -163,8 +170,6 @@ applyFinalColor()
 document.getElementById("label").innerText="🎉 Reaction Complete!"
 
 speak("Reaction completed")
-
-// 🔊 finish sound
 fizzSound.play()
 
 return
@@ -179,7 +184,6 @@ createStream()
 
 mixLiquids(pouredAmount/0.35)
 
-// effects + sound
 if(currentExperiment==="neutralization"){
 createBubbles()
 bubbleSound.play()
@@ -190,7 +194,6 @@ bubbleSound.play()
 }
 if(currentExperiment==="exothermic"){
 createSmoke()
-createHeatGlow()
 fizzSound.play()
 }
 
@@ -224,13 +227,13 @@ currentMixAmount += (amount - currentMixAmount)*0.1
 let color="#00ccff"
 
 if(currentExperiment==="neutralization"){
-color=`rgb(${200*currentMixAmount},${150},${100})`
+color=`rgb(${200*currentMixAmount},150,100)`
 }
 if(currentExperiment==="precipitation"){
 if(currentMixAmount>0.5) color="#ffffff"
 }
 if(currentExperiment==="exothermic"){
-color=`rgb(${255*currentMixAmount},${80},0)`
+color=`rgb(${255*currentMixAmount},80,0)`
 }
 
 setColor(color,color)
@@ -243,15 +246,13 @@ document.querySelector("#liquidB").setAttribute("color",b)
 
 // 🎯 FINAL COLOR
 function applyFinalColor(){
-
 let c="#00cc66"
 if(currentExperiment==="precipitation") c="#ffffff"
 if(currentExperiment==="exothermic") c="#ff3300"
-
 setColor(c,c)
 }
 
-// 🫧 EFFECTS
+// EFFECTS
 function createBubbles(){
 const b=document.createElement("a-sphere")
 b.setAttribute("radius","0.02")
@@ -279,21 +280,7 @@ document.querySelector("a-scene").appendChild(s)
 setTimeout(()=>s.remove(),1500)
 }
 
-function createHeatGlow(){}
-
-// 🔄 LEVEL
-function updateLiquidLevels(){
-document.querySelector("#liquidA").setAttribute("height",liquidLevelA)
-document.querySelector("#liquidB").setAttribute("height",liquidLevelB)
-}
-
-// 🔄 DROPDOWN FIX
-function changeExperiment(val){
-currentExperiment=val
-resetExperiment()
-}
-
-// 🔄 RESET
+// RESET
 function resetExperiment(){
 
 liquidLevelA=0.45
@@ -320,7 +307,7 @@ updateLiquidLevels()
 <div id="hud" class="card">
 <h3>🧑‍🔬 Fun Chemistry Lab</h3>
 
-<select onchange="changeExperiment(this.value)">
+<select id="experimentSelect">
 <option value="neutralization">🟢 Neutralization</option>
 <option value="precipitation">⚪ Precipitation</option>
 <option value="exothermic">🔴 Exothermic</option>
@@ -338,7 +325,7 @@ updateLiquidLevels()
 <p>🔴 Heat reaction 🔥</p>
 </div>
 
-<a-scene embedded arjs="debugUIEnabled:false" pour-system>
+<a-scene embedded arjs="debugUIEnabled:false" pour-system style="pointer-events:none;">
 
 <a-light type="ambient" intensity="0.8"></a-light>
 
