@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Cartoon Chemistry Lab 🧑‍🔬</title>
+<title>AR Chemistry Lab 🧪</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
@@ -17,7 +17,7 @@ background:linear-gradient(135deg,#ffecd2,#fcb69f);
 
 .card{
 position:absolute;
-background:rgba(255,255,255,0.25);
+background:rgba(255,255,255,0.3);
 padding:15px;
 border-radius:20px;
 z-index:9999;
@@ -35,12 +35,16 @@ background:#ff9a9e;
 padding:10px 20px;
 border-radius:30px;
 display:none;
-z-index:9999;
 font-weight:bold;
+z-index:9999;
 }
 
-#hud, #eduPanel, #label{
-pointer-events:auto;
+button,select{
+width:100%;
+margin-top:10px;
+padding:10px;
+border:none;
+border-radius:10px;
 }
 </style>
 
@@ -51,9 +55,6 @@ let reactionStarted=false
 let currentExperiment="neutralization"
 let interval=null
 
-const bubbleSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_115b9b33e1.mp3")
-const fizzSound = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_8b8dbe6f90.mp3")
-
 document.addEventListener("DOMContentLoaded",()=>{
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
@@ -63,10 +64,6 @@ currentExperiment=e.target.value
 resetExperiment()
 })
 })
-
-function speak(t){
-speechSynthesis.speak(new SpeechSynthesisUtterance(t))
-}
 
 AFRAME.registerComponent("pour-system",{
 tick:function(){
@@ -90,15 +87,13 @@ tubeAElement.object3D.localToWorld(tipA)
 const topB=new THREE.Vector3(0,0.6,0)
 tubeBElement.object3D.localToWorld(topB)
 
-// relaxed but same logic
-if(dist<2.5 && tilt>20 && tipA.y>topB.y && !reactionStarted){
+// ✅ FIXED TRIGGER
+if(dist<1.8 && tilt>30 && tipA.y>topB.y && !reactionStarted){
 
 reactionStarted=true
 
 document.getElementById("label").style.display="block"
 document.getElementById("label").innerText="🧪 Mixing Started!"
-
-bubbleSound.play()
 
 startPouring()
 }
@@ -116,15 +111,14 @@ if(count>=40){
 clearInterval(interval)
 removeStream()
 
+applyFinalColor()
+
 document.getElementById("label").innerText="🎉 Reaction Complete!"
-fizzSound.play()
 return
 }
 
-// 🌊 stream
 createStream()
 
-// 🎯 effects at correct position
 if(currentExperiment==="neutralization") createBubbles()
 if(currentExperiment==="precipitation") createFoam()
 if(currentExperiment==="exothermic") createSmoke()
@@ -134,11 +128,11 @@ count++
 },100)
 }
 
-// 🌊 STREAM BETWEEN TUBES
+// 🌊 STREAM
 function createStream(){
 
-const posA = new THREE.Vector3()
-const posB = new THREE.Vector3()
+const posA=new THREE.Vector3()
+const posB=new THREE.Vector3()
 
 tubeAElement.object3D.getWorldPosition(posA)
 tubeBElement.object3D.getWorldPosition(posB)
@@ -169,62 +163,54 @@ const s=document.querySelector("#stream")
 if(s) s.remove()
 }
 
-// 🫧 BUBBLES (FIXED POSITION)
-function createBubbles(){
+// 🎨 FINAL COLOR
+function applyFinalColor(){
 
-const pos = new THREE.Vector3()
+let color="#00cc66"
+
+if(currentExperiment==="precipitation") color="#ffffff"
+if(currentExperiment==="exothermic") color="#ff3300"
+
+document.querySelector("#liquidA").setAttribute("color",color)
+document.querySelector("#liquidB").setAttribute("color",color)
+}
+
+// 🫧 EFFECTS
+function createBubbles(){
+const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
 
 const b=document.createElement("a-sphere")
 b.setAttribute("radius","0.02")
 b.setAttribute("color","#aeefff")
-
-b.setAttribute("position",{
-x:pos.x,
-y:pos.y+0.2,
-z:pos.z
-})
+b.setAttribute("position",{x:pos.x,y:pos.y+0.2,z:pos.z})
 
 document.querySelector("a-scene").appendChild(b)
 setTimeout(()=>b.remove(),1000)
 }
 
-// 🧼 FOAM
 function createFoam(){
-
-const pos = new THREE.Vector3()
+const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
 
 const f=document.createElement("a-sphere")
 f.setAttribute("radius","0.03")
-f.setAttribute("color","#ffffff")
-
-f.setAttribute("position",{
-x:pos.x,
-y:pos.y+0.3,
-z:pos.z
-})
+f.setAttribute("color","#fff")
+f.setAttribute("position",{x:pos.x,y:pos.y+0.3,z:pos.z})
 
 document.querySelector("a-scene").appendChild(f)
 setTimeout(()=>f.remove(),1000)
 }
 
-// ☁️ SMOKE
 function createSmoke(){
-
-const pos = new THREE.Vector3()
+const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
 
 const s=document.createElement("a-sphere")
 s.setAttribute("radius","0.08")
 s.setAttribute("color","#888")
 s.setAttribute("opacity","0.5")
-
-s.setAttribute("position",{
-x:pos.x,
-y:pos.y+0.4,
-z:pos.z
-})
+s.setAttribute("position",{x:pos.x,y:pos.y+0.4,z:pos.z})
 
 document.querySelector("a-scene").appendChild(s)
 setTimeout(()=>s.remove(),1500)
@@ -244,7 +230,7 @@ removeStream()
 <body>
 
 <div id="hud" class="card">
-<h3>🧑‍🔬 Fun Chemistry Lab</h3>
+<h3>🧑‍🔬 Chemistry Lab</h3>
 
 <select id="experimentSelect">
 <option value="neutralization">🟢 Neutralization</option>
@@ -252,16 +238,16 @@ removeStream()
 <option value="exothermic">🔴 Exothermic</option>
 </select>
 
-<button onclick="resetExperiment()">🔄 Reset</button>
+<button onclick="resetExperiment()">Reset</button>
 </div>
 
 <div id="label">Reaction</div>
 
 <div id="eduPanel" class="card">
-<h3>🧪 Learn</h3>
-<p>🟢 Safe reaction</p>
-<p>⚪ Solid forms</p>
-<p>🔴 Heat reaction</p>
+<h3>🧪 Result</h3>
+<p>🟢 Neutral → Green</p>
+<p>⚪ Precipitate → White</p>
+<p>🔴 Heat → Red</p>
 </div>
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system style="pointer-events:none;">
