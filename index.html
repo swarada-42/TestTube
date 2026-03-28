@@ -55,6 +55,9 @@ let reactionStarted=false
 let currentExperiment="neutralization"
 let interval=null
 
+let liquidLevelA = 0.45
+let liquidLevelB = 0.45
+
 document.addEventListener("DOMContentLoaded",()=>{
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
@@ -87,7 +90,6 @@ tubeAElement.object3D.localToWorld(tipA)
 const topB=new THREE.Vector3(0,0.6,0)
 tubeBElement.object3D.localToWorld(topB)
 
-// ✅ FIXED TRIGGER
 if(dist<1.8 && tilt>30 && tipA.y>topB.y && !reactionStarted){
 
 reactionStarted=true
@@ -110,12 +112,19 @@ interval=setInterval(()=>{
 if(count>=40){
 clearInterval(interval)
 removeStream()
-
 applyFinalColor()
 
 document.getElementById("label").innerText="🎉 Reaction Complete!"
 return
 }
+
+// 🔽 decrease A
+liquidLevelA = Math.max(0.1, liquidLevelA - 0.01)
+
+// 🔼 increase B
+liquidLevelB = Math.min(0.6, liquidLevelB + 0.01)
+
+updateLiquidLevels()
 
 createStream()
 
@@ -163,6 +172,21 @@ const s=document.querySelector("#stream")
 if(s) s.remove()
 }
 
+// 💧 UPDATE LIQUID
+function updateLiquidLevels(){
+
+const liquidA=document.querySelector("#liquidA")
+const liquidB=document.querySelector("#liquidB")
+
+// A
+liquidA.setAttribute("height",liquidLevelA)
+liquidA.setAttribute("position",`0 ${0.15 + liquidLevelA/2} 0`)
+
+// B
+liquidB.setAttribute("height",liquidLevelB)
+liquidB.setAttribute("position",`0 ${0.15 + liquidLevelB/2} 0`)
+}
+
 // 🎨 FINAL COLOR
 function applyFinalColor(){
 
@@ -175,7 +199,7 @@ document.querySelector("#liquidA").setAttribute("color",color)
 document.querySelector("#liquidB").setAttribute("color",color)
 }
 
-// 🫧 EFFECTS
+// EFFECTS
 function createBubbles(){
 const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
@@ -216,12 +240,20 @@ document.querySelector("a-scene").appendChild(s)
 setTimeout(()=>s.remove(),1500)
 }
 
-// RESET
+// 🔄 RESET (FIXED)
 function resetExperiment(){
+
 reactionStarted=false
 clearInterval(interval)
-document.getElementById("label").style.display="none"
+
+liquidLevelA = 0.45
+liquidLevelB = 0.45
+
+updateLiquidLevels()
+
 removeStream()
+
+document.getElementById("label").style.display="none"
 }
 
 </script>
@@ -254,7 +286,6 @@ removeStream()
 
 <a-light type="ambient" intensity="1"></a-light>
 
-<!-- Tube A -->
 <a-marker id="markerA" type="pattern" url="markers/testtube_markerA.patt">
 <a-entity id="tubeA">
 <a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
@@ -262,7 +293,6 @@ removeStream()
 </a-entity>
 </a-marker>
 
-<!-- Tube B -->
 <a-marker id="markerB" type="pattern" url="markers/testtube_markerB.patt">
 <a-entity id="tubeB">
 <a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
