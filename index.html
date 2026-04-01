@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Advanced AR Chemistry Lab 🧪🔥</title>
+<title>AR Chemistry Lab 🧪 (Final)</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
@@ -61,20 +61,33 @@ let viscosity="thin"
 let chemicalA="acid"
 let chemicalB="base"
 
-// 🎨 CHEMICAL COLORS
+// 🧪 REAL CHEMICAL COLORS
 const chemicals={
-acid:{color:"#0066ff",name:"HCl (Acid)"},
-base:{color:"#ffaa00",name:"NaOH (Base)"},
-potassium:{color:"#8a2be2",name:"Potassium"},
-copper:{color:"#1e90ff",name:"CuSO₄"}
+acid:{color:"#4da6ff",name:"HCl"},
+base:{color:"#ffe066",name:"NaOH"},
+potassium:{color:"#a64dff",name:"Potassium"},
+copper:{color:"#3399ff",name:"CuSO₄"}
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
+
+updateInitialColors()
+
+// dropdown fix
+document.querySelectorAll("select").forEach(sel=>{
+sel.addEventListener("change",()=>{
+viscosity=document.getElementById("viscosity").value
+chemicalA=document.getElementById("chemA").value
+chemicalB=document.getElementById("chemB").value
+updateInitialColors()
+resetExperiment()
+})
+})
 })
 
-// 🎯 REACTION DETECTION
+// 🎯 DETECTION
 AFRAME.registerComponent("pour-system",{
 tick:function(){
 
@@ -119,11 +132,11 @@ if(count>=40){
 clearInterval(interval)
 applyFinalColor()
 createHeat()
-document.getElementById("label").innerText="🔥 Reaction Complete!"
+document.getElementById("label").innerText="🎉 Reaction Complete!"
 return
 }
 
-// liquid change
+// liquid levels
 liquidLevelA-=0.01
 liquidLevelB+=0.01
 updateLiquidLevels()
@@ -136,7 +149,7 @@ count++
 }, viscosity==="thick"?180:100)
 }
 
-// 💧 FLUID STREAM (VISCOSITY)
+// 💧 FLUID
 function createFluidStream(){
 
 const posA=new THREE.Vector3()
@@ -152,6 +165,7 @@ let speed = viscosity==="thick"?900:600
 for(let i=0;i<drops;i++){
 
 const d=document.createElement("a-sphere")
+d.setAttribute("class","fluid")
 d.setAttribute("radius",size)
 d.setAttribute("color",chemicals[chemicalA].color)
 
@@ -179,6 +193,7 @@ const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
 
 const p=document.createElement("a-sphere")
+p.setAttribute("class","swirl")
 p.setAttribute("radius","0.015")
 p.setAttribute("color",chemicals[chemicalB].color)
 
@@ -196,8 +211,10 @@ document.querySelector("a-scene").appendChild(p)
 setTimeout(()=>p.remove(),1000)
 }
 
-// 🔥 HEAT EFFECT
+// 🔥 HEAT
 function createHeat(){
+
+if(chemicalA==="potassium"){
 
 const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
@@ -219,23 +236,44 @@ dur:500
 
 document.querySelector("a-scene").appendChild(heat)
 }
+}
 
 // 💧 LEVEL
 function updateLiquidLevels(){
 
 document.querySelector("#liquidA").setAttribute("height",liquidLevelA)
+document.querySelector("#liquidA").setAttribute("position",`0 ${0.15 + liquidLevelA/2} 0`)
+
 document.querySelector("#liquidB").setAttribute("height",liquidLevelB)
+document.querySelector("#liquidB").setAttribute("position",`0 ${0.15 + liquidLevelB/2} 0`)
 }
 
-// 🎨 FINAL COLOR
+// 🎨 INITIAL COLORS
+function updateInitialColors(){
+document.querySelector("#liquidA").setAttribute("color",chemicals[chemicalA].color)
+document.querySelector("#liquidB").setAttribute("color",chemicals[chemicalB].color)
+}
+
+// 🎯 FINAL COLOR LOGIC
 function applyFinalColor(){
 
-let final="#00cc66"
+let finalColor
 
-if(chemicalA==="potassium") final="#ff00ff"
+if(chemicalA==="acid" && chemicalB==="base"){
+finalColor="#00cc66" // green
+}
+else if(chemicalA==="potassium"){
+finalColor="#ff3300" // heat
+}
+else if(chemicalA==="copper" || chemicalB==="copper"){
+finalColor="#3399ff" // no change
+}
+else{
+finalColor=chemicals[chemicalB].color
+}
 
-document.querySelector("#liquidA").setAttribute("color",final)
-document.querySelector("#liquidB").setAttribute("color",final)
+document.querySelector("#liquidA").setAttribute("color",finalColor)
+document.querySelector("#liquidB").setAttribute("color",finalColor)
 }
 
 // 🔄 RESET
@@ -249,7 +287,9 @@ liquidLevelB=0.45
 
 updateLiquidLevels()
 
-document.querySelectorAll("a-sphere").forEach(e=>e.remove())
+document.querySelectorAll(".fluid,.swirl").forEach(e=>e.remove())
+
+updateInitialColors()
 
 document.getElementById("label").style.display="none"
 }
@@ -260,21 +300,22 @@ document.getElementById("label").style.display="none"
 <body>
 
 <div id="hud" class="card">
-<h3>🧪 Advanced Lab</h3>
+<h3>🧪 Smart Chemistry Lab</h3>
 
-<select onchange="viscosity=this.value">
+<select id="viscosity">
 <option value="thin">Thin Liquid</option>
 <option value="thick">Thick Liquid</option>
 </select>
 
-<select onchange="chemicalA=this.value">
-<option value="acid">Acid (HCl)</option>
+<select id="chemA">
+<option value="acid">HCl (Acid)</option>
 <option value="potassium">Potassium</option>
+<option value="copper">CuSO₄</option>
 </select>
 
-<select onchange="chemicalB=this.value">
-<option value="base">Base (NaOH)</option>
-<option value="copper">Copper Sulfate</option>
+<select id="chemB">
+<option value="base">NaOH (Base)</option>
+<option value="copper">CuSO₄</option>
 </select>
 
 <button onclick="resetExperiment()">Reset</button>
@@ -284,8 +325,8 @@ document.getElementById("label").style.display="none"
 
 <div id="eduPanel" class="card">
 <p>💧 Viscosity affects flow</p>
-<p>🔥 Heat = Exothermic</p>
-<p>🎨 Color shows product</p>
+<p>🔥 Heat for potassium</p>
+<p>🎨 Real chemical colors</p>
 </div>
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system style="pointer-events:none;">
