@@ -90,6 +90,7 @@ tubeAElement.object3D.localToWorld(tipA)
 const topB=new THREE.Vector3(0,0.6,0)
 tubeBElement.object3D.localToWorld(topB)
 
+// trigger
 if(dist<1.8 && tilt>30 && tipA.y>topB.y && !reactionStarted){
 
 reactionStarted=true
@@ -102,7 +103,7 @@ startPouring()
 }
 })
 
-// 🚀 POUR
+// POUR
 function startPouring(){
 
 let count=0
@@ -118,15 +119,14 @@ document.getElementById("label").innerText="🎉 Reaction Complete!"
 return
 }
 
-// 🔽 decrease A
+// liquid movement
 liquidLevelA = Math.max(0.1, liquidLevelA - 0.01)
-
-// 🔼 increase B
 liquidLevelB = Math.min(0.6, liquidLevelB + 0.01)
 
 updateLiquidLevels()
 
 createStream()
+createSwirl()
 
 if(currentExperiment==="neutralization") createBubbles()
 if(currentExperiment==="precipitation") createFoam()
@@ -137,7 +137,7 @@ count++
 },100)
 }
 
-// 🌊 STREAM
+// STREAM
 function createStream(){
 
 const posA=new THREE.Vector3()
@@ -172,26 +172,50 @@ const s=document.querySelector("#stream")
 if(s) s.remove()
 }
 
-// 💧 UPDATE LIQUID
+// SWIRL EFFECT
+function createSwirl(){
+
+const pos=new THREE.Vector3()
+tubeBElement.object3D.getWorldPosition(pos)
+
+const p=document.createElement("a-sphere")
+p.setAttribute("class","swirl")
+p.setAttribute("radius","0.015")
+p.setAttribute("color","#00ffff")
+p.setAttribute("opacity","0.7")
+
+p.setAttribute("position",{x:pos.x,y:pos.y+0.2,z:pos.z})
+
+p.setAttribute("animation__circle",{
+property:"position",
+to:`${pos.x+0.2} ${pos.y+0.4} ${pos.z}`,
+dur:1000,
+dir:"alternate",
+loop:true
+})
+
+document.querySelector("a-scene").appendChild(p)
+
+setTimeout(()=>p.remove(),1200)
+}
+
+// LIQUID LEVEL
 function updateLiquidLevels(){
 
 const liquidA=document.querySelector("#liquidA")
 const liquidB=document.querySelector("#liquidB")
 
-// A
 liquidA.setAttribute("height",liquidLevelA)
 liquidA.setAttribute("position",`0 ${0.15 + liquidLevelA/2} 0`)
 
-// B
 liquidB.setAttribute("height",liquidLevelB)
 liquidB.setAttribute("position",`0 ${0.15 + liquidLevelB/2} 0`)
 }
 
-// 🎨 FINAL COLOR
+// FINAL COLOR
 function applyFinalColor(){
 
 let color="#00cc66"
-
 if(currentExperiment==="precipitation") color="#ffffff"
 if(currentExperiment==="exothermic") color="#ff3300"
 
@@ -200,47 +224,27 @@ document.querySelector("#liquidB").setAttribute("color",color)
 }
 
 // EFFECTS
-function createBubbles(){
+function createBubbles(){spawnEffect("#aeefff",0.02)}
+function createFoam(){spawnEffect("#ffffff",0.03)}
+function createSmoke(){spawnEffect("#888",0.08)}
+
+function spawnEffect(color,size){
+
 const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
 
-const b=document.createElement("a-sphere")
-b.setAttribute("radius","0.02")
-b.setAttribute("color","#aeefff")
-b.setAttribute("position",{x:pos.x,y:pos.y+0.2,z:pos.z})
+const e=document.createElement("a-sphere")
+e.setAttribute("class","effect")
+e.setAttribute("radius",size)
+e.setAttribute("color",color)
 
-document.querySelector("a-scene").appendChild(b)
-setTimeout(()=>b.remove(),1000)
+e.setAttribute("position",{x:pos.x,y:pos.y+0.3,z:pos.z})
+
+document.querySelector("a-scene").appendChild(e)
+setTimeout(()=>e.remove(),1000)
 }
 
-function createFoam(){
-const pos=new THREE.Vector3()
-tubeBElement.object3D.getWorldPosition(pos)
-
-const f=document.createElement("a-sphere")
-f.setAttribute("radius","0.03")
-f.setAttribute("color","#fff")
-f.setAttribute("position",{x:pos.x,y:pos.y+0.3,z:pos.z})
-
-document.querySelector("a-scene").appendChild(f)
-setTimeout(()=>f.remove(),1000)
-}
-
-function createSmoke(){
-const pos=new THREE.Vector3()
-tubeBElement.object3D.getWorldPosition(pos)
-
-const s=document.createElement("a-sphere")
-s.setAttribute("radius","0.08")
-s.setAttribute("color","#888")
-s.setAttribute("opacity","0.5")
-s.setAttribute("position",{x:pos.x,y:pos.y+0.4,z:pos.z})
-
-document.querySelector("a-scene").appendChild(s)
-setTimeout(()=>s.remove(),1500)
-}
-
-// 🔄 RESET (FIXED)
+// RESET
 function resetExperiment(){
 
 reactionStarted=false
@@ -252,6 +256,13 @@ liquidLevelB = 0.45
 updateLiquidLevels()
 
 removeStream()
+
+// remove particles
+document.querySelectorAll(".effect, .swirl").forEach(e=>e.remove())
+
+// reset color
+document.querySelector("#liquidA").setAttribute("color","#0066cc")
+document.querySelector("#liquidB").setAttribute("color","#ffaa00")
 
 document.getElementById("label").style.display="none"
 }
@@ -277,9 +288,9 @@ document.getElementById("label").style.display="none"
 
 <div id="eduPanel" class="card">
 <h3>🧪 Result</h3>
-<p>🟢 Neutral → Green</p>
-<p>⚪ Precipitate → White</p>
-<p>🔴 Heat → Red</p>
+<p>🟢 Green</p>
+<p>⚪ White</p>
+<p>🔴 Red</p>
 </div>
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system style="pointer-events:none;">
