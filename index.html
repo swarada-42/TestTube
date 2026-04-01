@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>AR Chemistry Lab - Fluid Physics 🧪</title>
+<title>Advanced AR Chemistry Lab 🧪🔥</title>
 
 <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
@@ -23,8 +23,8 @@ border-radius:20px;
 z-index:9999;
 }
 
-#hud{top:15px;left:15px;width:240px;}
-#eduPanel{bottom:15px;left:15px;width:260px;}
+#hud{top:10px;left:10px;width:260px;}
+#eduPanel{bottom:10px;left:10px;width:280px;}
 
 #label{
 position:absolute;
@@ -41,7 +41,7 @@ z-index:9999;
 
 button,select{
 width:100%;
-margin-top:10px;
+margin-top:8px;
 padding:10px;
 border:none;
 border-radius:10px;
@@ -52,22 +52,29 @@ border-radius:10px;
 
 let tubeAElement, tubeBElement
 let reactionStarted=false
-let currentExperiment="neutralization"
 let interval=null
 
-let liquidLevelA = 0.45
-let liquidLevelB = 0.45
+let liquidLevelA=0.45
+let liquidLevelB=0.45
+
+let viscosity="thin"
+let chemicalA="acid"
+let chemicalB="base"
+
+// 🎨 CHEMICAL COLORS
+const chemicals={
+acid:{color:"#0066ff",name:"HCl (Acid)"},
+base:{color:"#ffaa00",name:"NaOH (Base)"},
+potassium:{color:"#8a2be2",name:"Potassium"},
+copper:{color:"#1e90ff",name:"CuSO₄"}
+}
 
 document.addEventListener("DOMContentLoaded",()=>{
 tubeAElement=document.querySelector("#tubeA")
 tubeBElement=document.querySelector("#tubeB")
-
-document.getElementById("experimentSelect").addEventListener("change",(e)=>{
-currentExperiment=e.target.value
-resetExperiment()
-})
 })
 
+// 🎯 REACTION DETECTION
 AFRAME.registerComponent("pour-system",{
 tick:function(){
 
@@ -90,11 +97,9 @@ tubeAElement.object3D.localToWorld(tipA)
 const topB=new THREE.Vector3(0,0.6,0)
 tubeBElement.object3D.localToWorld(topB)
 
-// realistic trigger
 if(dist<1.8 && tilt>30 && tipA.y>topB.y && !reactionStarted){
 
 reactionStarted=true
-
 document.getElementById("label").style.display="block"
 document.getElementById("label").innerText="🧪 Mixing Started!"
 
@@ -113,32 +118,25 @@ interval=setInterval(()=>{
 if(count>=40){
 clearInterval(interval)
 applyFinalColor()
-document.getElementById("label").innerText="🎉 Reaction Complete!"
+createHeat()
+document.getElementById("label").innerText="🔥 Reaction Complete!"
 return
 }
 
-// liquid levels
-liquidLevelA = Math.max(0.1, liquidLevelA - 0.01)
-liquidLevelB = Math.min(0.6, liquidLevelB + 0.01)
-
+// liquid change
+liquidLevelA-=0.01
+liquidLevelB+=0.01
 updateLiquidLevels()
 
-// REAL FLUID
 createFluidStream()
 createSwirl()
-createDiffusion()
-
-// reaction effects
-if(currentExperiment==="neutralization") createBubbles()
-if(currentExperiment==="precipitation") createFoam()
-if(currentExperiment==="exothermic") createSmoke()
 
 count++
 
-},100)
+}, viscosity==="thick"?180:100)
 }
 
-// 💧 FLUID STREAM
+// 💧 FLUID STREAM (VISCOSITY)
 function createFluidStream(){
 
 const posA=new THREE.Vector3()
@@ -147,33 +145,30 @@ const posB=new THREE.Vector3()
 tubeAElement.object3D.getWorldPosition(posA)
 tubeBElement.object3D.getWorldPosition(posB)
 
-for(let i=0;i<5;i++){
+let drops = viscosity==="thick"?2:6
+let size = viscosity==="thick"?0.025:0.015
+let speed = viscosity==="thick"?900:600
 
-const drop=document.createElement("a-sphere")
-drop.setAttribute("class","fluid")
-drop.setAttribute("radius",0.015)
-drop.setAttribute("color","#00ccff")
+for(let i=0;i<drops;i++){
 
-drop.setAttribute("position",{
+const d=document.createElement("a-sphere")
+d.setAttribute("radius",size)
+d.setAttribute("color",chemicals[chemicalA].color)
+
+d.setAttribute("position",{
 x:posA.x+(Math.random()-0.5)*0.05,
 y:posA.y+0.2,
 z:posA.z+(Math.random()-0.5)*0.05
 })
 
-drop.setAttribute("animation__fall",{
+d.setAttribute("animation__fall",{
 property:"position",
-to:`${posB.x+(Math.random()-0.2)} ${posB.y+0.3} ${posB.z+(Math.random()-0.2)}`,
-dur:600
+to:`${posB.x} ${posB.y+0.3} ${posB.z}`,
+dur:speed
 })
 
-drop.setAttribute("animation__fade",{
-property:"opacity",
-to:0,
-dur:700
-})
-
-document.querySelector("a-scene").appendChild(drop)
-setTimeout(()=>drop.remove(),700)
+document.querySelector("a-scene").appendChild(d)
+setTimeout(()=>d.remove(),speed)
 }
 }
 
@@ -183,100 +178,67 @@ function createSwirl(){
 const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
 
-for(let i=0;i<3;i++){
-
 const p=document.createElement("a-sphere")
-p.setAttribute("class","swirl")
-p.setAttribute("radius",0.012)
-p.setAttribute("color","#00ffff")
+p.setAttribute("radius","0.015")
+p.setAttribute("color",chemicals[chemicalB].color)
 
-p.setAttribute("position",{
-x:pos.x+(Math.random()-0.5)*0.1,
-y:pos.y+0.2,
-z:pos.z+(Math.random()-0.5)*0.1
-})
+p.setAttribute("position",{x:pos.x,y:pos.y+0.2,z:pos.z})
 
-p.setAttribute("animation__move",{
+p.setAttribute("animation",{
 property:"position",
-to:`${pos.x+(Math.random()-0.5)*0.3} ${pos.y+0.5} ${pos.z+(Math.random()-0.5)*0.3}`,
-dur:1200,
+to:`${pos.x+0.3} ${pos.y+0.5} ${pos.z}`,
+dur:1000,
 dir:"alternate",
 loop:true
 })
 
 document.querySelector("a-scene").appendChild(p)
-setTimeout(()=>p.remove(),1200)
-}
+setTimeout(()=>p.remove(),1000)
 }
 
-// 🎨 DIFFUSION
-function createDiffusion(){
+// 🔥 HEAT EFFECT
+function createHeat(){
 
 const pos=new THREE.Vector3()
 tubeBElement.object3D.getWorldPosition(pos)
 
-const d=document.createElement("a-sphere")
+const heat=document.createElement("a-sphere")
+heat.setAttribute("radius","0.4")
+heat.setAttribute("color","#ff3300")
+heat.setAttribute("opacity","0.4")
 
-let color="#00cc66"
-if(currentExperiment==="precipitation") color="#ffffff"
-if(currentExperiment==="exothermic") color="#ff3300"
+heat.setAttribute("position",{x:pos.x,y:pos.y+0.4,z:pos.z})
 
-d.setAttribute("radius",0.02)
-d.setAttribute("color",color)
-d.setAttribute("opacity",0.5)
+heat.setAttribute("animation__pulse",{
+property:"scale",
+to:"1.5 1.5 1.5",
+dir:"alternate",
+loop:true,
+dur:500
+})
 
-d.setAttribute("position",{x:pos.x,y:pos.y+0.2,z:pos.z})
-
-d.setAttribute("animation__spread",{property:"scale",to:"3 3 3",dur:1000})
-d.setAttribute("animation__fade",{property:"opacity",to:0,dur:1000})
-
-document.querySelector("a-scene").appendChild(d)
-setTimeout(()=>d.remove(),1000)
+document.querySelector("a-scene").appendChild(heat)
 }
 
-// 💧 LIQUID
+// 💧 LEVEL
 function updateLiquidLevels(){
 
 document.querySelector("#liquidA").setAttribute("height",liquidLevelA)
-document.querySelector("#liquidA").setAttribute("position",`0 ${0.15 + liquidLevelA/2} 0`)
-
 document.querySelector("#liquidB").setAttribute("height",liquidLevelB)
-document.querySelector("#liquidB").setAttribute("position",`0 ${0.15 + liquidLevelB/2} 0`)
 }
 
 // 🎨 FINAL COLOR
 function applyFinalColor(){
 
-let color="#00cc66"
-if(currentExperiment==="precipitation") color="#ffffff"
-if(currentExperiment==="exothermic") color="#ff3300"
+let final="#00cc66"
 
-document.querySelector("#liquidA").setAttribute("color",color)
-document.querySelector("#liquidB").setAttribute("color",color)
+if(chemicalA==="potassium") final="#ff00ff"
+
+document.querySelector("#liquidA").setAttribute("color",final)
+document.querySelector("#liquidB").setAttribute("color",final)
 }
 
-// EFFECTS
-function createBubbles(){spawnEffect("#aeefff",0.02)}
-function createFoam(){spawnEffect("#ffffff",0.03)}
-function createSmoke(){spawnEffect("#888",0.08)}
-
-function spawnEffect(color,size){
-
-const pos=new THREE.Vector3()
-tubeBElement.object3D.getWorldPosition(pos)
-
-const e=document.createElement("a-sphere")
-e.setAttribute("class","effect")
-e.setAttribute("radius",size)
-e.setAttribute("color",color)
-
-e.setAttribute("position",{x:pos.x,y:pos.y+0.3,z:pos.z})
-
-document.querySelector("a-scene").appendChild(e)
-setTimeout(()=>e.remove(),1000)
-}
-
-// RESET
+// 🔄 RESET
 function resetExperiment(){
 
 reactionStarted=false
@@ -287,10 +249,7 @@ liquidLevelB=0.45
 
 updateLiquidLevels()
 
-document.querySelectorAll(".fluid,.swirl,.effect").forEach(e=>e.remove())
-
-document.querySelector("#liquidA").setAttribute("color","#0066cc")
-document.querySelector("#liquidB").setAttribute("color","#ffaa00")
+document.querySelectorAll("a-sphere").forEach(e=>e.remove())
 
 document.getElementById("label").style.display="none"
 }
@@ -301,12 +260,21 @@ document.getElementById("label").style.display="none"
 <body>
 
 <div id="hud" class="card">
-<h3>🧑‍🔬 Chemistry Lab</h3>
+<h3>🧪 Advanced Lab</h3>
 
-<select id="experimentSelect">
-<option value="neutralization">🟢 Neutralization</option>
-<option value="precipitation">⚪ Precipitation</option>
-<option value="exothermic">🔴 Exothermic</option>
+<select onchange="viscosity=this.value">
+<option value="thin">Thin Liquid</option>
+<option value="thick">Thick Liquid</option>
+</select>
+
+<select onchange="chemicalA=this.value">
+<option value="acid">Acid (HCl)</option>
+<option value="potassium">Potassium</option>
+</select>
+
+<select onchange="chemicalB=this.value">
+<option value="base">Base (NaOH)</option>
+<option value="copper">Copper Sulfate</option>
 </select>
 
 <button onclick="resetExperiment()">Reset</button>
@@ -315,10 +283,9 @@ document.getElementById("label").style.display="none"
 <div id="label">Reaction</div>
 
 <div id="eduPanel" class="card">
-<h3>🧪 Result</h3>
-<p>🟢 Green</p>
-<p>⚪ White</p>
-<p>🔴 Red</p>
+<p>💧 Viscosity affects flow</p>
+<p>🔥 Heat = Exothermic</p>
+<p>🎨 Color shows product</p>
 </div>
 
 <a-scene embedded arjs="debugUIEnabled:false" pour-system style="pointer-events:none;">
@@ -328,14 +295,14 @@ document.getElementById("label").style.display="none"
 <a-marker id="markerA" type="pattern" url="markers/testtube_markerA.patt">
 <a-entity id="tubeA">
 <a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
-<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0" color="#0066cc"></a-cylinder>
+<a-cylinder id="liquidA" radius="0.13" height="0.45" position="0 0.225 0"></a-cylinder>
 </a-entity>
 </a-marker>
 
 <a-marker id="markerB" type="pattern" url="markers/testtube_markerB.patt">
 <a-entity id="tubeB">
 <a-cylinder radius="0.15" height="0.6" position="0 0.3 0" color="#fff" opacity="0.4"></a-cylinder>
-<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0" color="#ffaa00"></a-cylinder>
+<a-cylinder id="liquidB" radius="0.13" height="0.45" position="0 0.225 0"></a-cylinder>
 </a-entity>
 </a-marker>
 
